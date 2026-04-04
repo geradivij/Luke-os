@@ -1,0 +1,13 @@
+transformers
+datasets
+peft
+accelerate
+trl
+torch
+pynput
+pygetwindow
+huggingface_hub
+opencv-python
+mediapipe
+PyQt5
+pillow
