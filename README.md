@@ -1,4 +1,4 @@
-# Instanova (CLR Agent)
+# Luke (CLR Agent)
 
 CLR is a local desktop focus assistant that monitors interaction signals, estimates cognitive load, and reacts with nudges/break overlays to reduce overload.
 
