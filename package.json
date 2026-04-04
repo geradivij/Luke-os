@@ -1,0 +1,12 @@
+{
+  "name": "luke-supermemory",
+  "version": "1.0.0",
+  "description": "Luke SuperMemory desktop widget",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^41.1.1"
+  }
+}

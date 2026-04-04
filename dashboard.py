@@ -1,6 +1,8 @@
+import threading
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QLabel, QFrame
+    QPushButton, QLabel, QFrame, QTabWidget,
+    QTextBrowser, QLineEdit
 )
 from PyQt5.QtCore import pyqtSignal, QObject, Qt, QTimer
 from PyQt5.QtGui import QFont, QColor, QPainter, QPen
@@ -8,7 +10,7 @@ from PyQt5.QtGui import QFont, QColor, QPainter, QPen
 
 class AgentBridge(QObject):
     updated      = pyqtSignal(dict)
-    stress_heard = pyqtSignal(str)   # new: stress message signal
+    stress_heard = pyqtSignal(str)
 
 
 class DraggableWidget(QWidget):
@@ -54,15 +56,198 @@ class ScoreArc(QWidget):
         painter.drawText(rect, Qt.AlignCenter, str(self._score))
 
 
+# ── Memory Tab ─────────────────────────────────────────────────────────────────
+
+class MemoryTab(QWidget):
+    _response_ready = pyqtSignal(str)
+    _status_ready   = pyqtSignal(str)
+
+    def __init__(self):
+        super().__init__()
+        self._agents_started = False
+        self._memory     = None
+        self._task_agent = None
+        self._status_timer = None
+        self._build_ui()
+        self._response_ready.connect(self._show_response)
+        self._status_ready.connect(self._update_status_label)
+        # boot agents shortly after UI is ready
+        QTimer.singleShot(800, self._ensure_agents)
+
+    def _build_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(6)
+
+        # Status bar
+        self.status_label = QLabel("● Starting memory agents...")
+        self.status_label.setFont(QFont("Courier New", 8))
+        self.status_label.setStyleSheet("color: #585B70; background: transparent;")
+        layout.addWidget(self.status_label)
+
+        # Chat display
+        self.chat_display = QTextBrowser()
+        self.chat_display.setOpenExternalLinks(False)
+        self.chat_display.setFont(QFont("Segoe UI", 9))
+        self.chat_display.setStyleSheet("""
+            QTextBrowser {
+                background: #0d0d1a;
+                color: #CDD6F4;
+                border: 1px solid #2A2A3E;
+                border-radius: 6px;
+                padding: 6px;
+            }
+        """)
+        layout.addWidget(self.chat_display)
+
+        # Input row
+        input_row = QHBoxLayout()
+        input_row.setSpacing(6)
+
+        self.input_field = QLineEdit()
+        self.input_field.setPlaceholderText("Ask Luke anything about your screen history...")
+        self.input_field.setFont(QFont("Segoe UI", 9))
+        self.input_field.setFixedHeight(32)
+        self.input_field.setStyleSheet("""
+            QLineEdit {
+                background: #1E1E2E;
+                color: #CDD6F4;
+                border: 1px solid #2A2A3E;
+                border-radius: 6px;
+                padding: 4px 8px;
+            }
+            QLineEdit:focus { border-color: #89B4FA; }
+        """)
+        self.input_field.returnPressed.connect(self._send)
+
+        self.send_btn = QPushButton("Ask")
+        self.send_btn.setFont(QFont("Courier New", 9, QFont.Bold))
+        self.send_btn.setFixedSize(52, 32)
+        self.send_btn.setCursor(Qt.PointingHandCursor)
+        self.send_btn.clicked.connect(self._send)
+        self.send_btn.setStyleSheet("""
+            QPushButton {
+                background: #1E1E2E; color: #89B4FA;
+                border: 1px solid #89B4FA; border-radius: 6px;
+            }
+            QPushButton:hover { background: #2A2A3E; }
+            QPushButton:disabled { color: #45475A; border-color: #2A2A3E; }
+        """)
+
+        input_row.addWidget(self.input_field)
+        input_row.addWidget(self.send_btn)
+        layout.addLayout(input_row)
+
+    def _ensure_agents(self):
+        if self._agents_started:
+            return
+        try:
+            from superluke import (
+                _start_writer, MemoryAgent, SummaryAgent,
+                TaskAgent, CategoryTracker, screenshot_loop
+            )
+            _start_writer()
+            self._memory     = MemoryAgent()
+            summary          = SummaryAgent(self._memory)
+            self._task_agent = TaskAgent()
+            cat_tracker      = CategoryTracker()
+
+            prod_tracker = None
+            try:
+                from productivity import DeviceTracker
+                prod_tracker = DeviceTracker()
+                prod_tracker.start()
+            except Exception:
+                pass
+
+            threading.Thread(
+                target=screenshot_loop,
+                args=(self._memory, self._task_agent, prod_tracker, cat_tracker),
+                daemon=True,
+                name="superluke-screenshot",
+            ).start()
+            threading.Thread(
+                target=summary.run_loop,
+                daemon=True,
+                name="superluke-summary",
+            ).start()
+
+            self._agents_started = True
+            self._status_ready.emit("● Live — watching screen")
+            self.status_label.setStyleSheet("color: #A6E3A1; background: transparent; font-size: 8pt;")
+
+            self._status_timer = QTimer(self)
+            self._status_timer.timeout.connect(self._poll_status)
+            self._status_timer.start(10_000)
+
+        except Exception as e:
+            self._status_ready.emit(f"✗ Memory unavailable: {e}")
+            self.status_label.setStyleSheet("color: #F38BA8; background: transparent; font-size: 8pt;")
+
+    def _poll_status(self):
+        if not self._agents_started:
+            return
+        def _read():
+            try:
+                from superluke import _raw_buffer, _buffer_lock, load_json, SUMMARIES_FILE
+                with _buffer_lock:
+                    buf = len(_raw_buffer)
+                sums  = load_json(SUMMARIES_FILE, [])
+                tasks = self._task_agent.list_tasks() if self._task_agent else []
+                self._status_ready.emit(
+                    f"● Live  buf:{buf}  wins:{len(sums)}  tasks:{len(tasks)}"
+                )
+            except Exception:
+                pass
+        threading.Thread(target=_read, daemon=True).start()
+
+    def _update_status_label(self, text: str):
+        self.status_label.setText(text)
+
+    def _send(self):
+        msg = self.input_field.text().strip()
+        if not msg:
+            return
+        if not self._memory:
+            self.chat_display.append(
+                "<span style='color:#F38BA8'>Memory agents are still starting up — wait a moment.</span>"
+            )
+            return
+        self.input_field.clear()
+        self.chat_display.append(
+            f"<p style='margin:4px 0'><span style='color:#89B4FA'><b>You</b></span>&nbsp; {msg}</p>"
+        )
+        self.send_btn.setEnabled(False)
+        self.send_btn.setText("...")
+
+        def _ask():
+            try:
+                response = self._memory.chat(msg)
+            except Exception as e:
+                response = f"Error: {e}"
+            self._response_ready.emit(response)
+
+        threading.Thread(target=_ask, daemon=True).start()
+
+    def _show_response(self, response: str):
+        self.chat_display.append(
+            f"<p style='margin:4px 0'><span style='color:#A6E3A1'><b>Luke</b></span>&nbsp; {response}</p>"
+        )
+        self.send_btn.setEnabled(True)
+        self.send_btn.setText("Ask")
+
+
+# ── Main Dashboard ─────────────────────────────────────────────────────────────
+
 class CLRDashboard(QMainWindow):
     def __init__(self, agent):
         super().__init__()
-        self.agent = agent
+        self.agent    = agent
         self.focus_on = False
 
         self.setWindowTitle("CLR")
         self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint | Qt.Tool)
-        self.resize(460, 260)
+        self.resize(460, 360)   # taller than before to fit tab bar without squeezing CLR
         self.move(20, 20)
 
         self.bridge = AgentBridge()
@@ -87,11 +272,11 @@ class CLRDashboard(QMainWindow):
         root.setContentsMargins(16, 12, 16, 12)
         root.setSpacing(8)
 
-        # ── Header ──────────────────────────────────────────────────
+        # ── Header (shared across all tabs) ────────────────────────────────
         header = QHBoxLayout()
-        clr = QLabel("CLR")
-        clr.setFont(QFont("Courier New", 13, QFont.Bold))
-        clr.setStyleSheet("color: #89B4FA; letter-spacing: 4px; background: transparent;")
+        clr_lbl = QLabel("CLR")
+        clr_lbl.setFont(QFont("Courier New", 13, QFont.Bold))
+        clr_lbl.setStyleSheet("color: #89B4FA; letter-spacing: 4px; background: transparent;")
         self.status_dot = QLabel("●")
         self.status_dot.setStyleSheet("color: #A6E3A1; font-size: 11px; background: transparent;")
         self.close_btn = QPushButton("✕")
@@ -101,7 +286,7 @@ class CLRDashboard(QMainWindow):
             QPushButton { background: transparent; color: #585B70; border: none; font-size: 13px; }
             QPushButton:hover { color: #F38BA8; }
         """)
-        header.addWidget(clr)
+        header.addWidget(clr_lbl)
         header.addSpacing(6)
         header.addWidget(self.status_dot)
         header.addStretch()
@@ -113,7 +298,43 @@ class CLRDashboard(QMainWindow):
         line.setStyleSheet("background: #2A2A3E; max-height: 1px;")
         root.addWidget(line)
 
-        # ── Score + Info ─────────────────────────────────────────────
+        # ── Tab widget ──────────────────────────────────────────────────────
+        self.tabs = QTabWidget()
+        self.tabs.setStyleSheet("""
+            QTabWidget::pane {
+                border: none;
+                background: transparent;
+            }
+            QTabBar::tab {
+                background: #1E1E2E;
+                color: #585B70;
+                border: 1px solid #2A2A3E;
+                border-bottom: none;
+                border-radius: 4px 4px 0 0;
+                padding: 4px 14px;
+                font-family: "Courier New";
+                font-size: 9pt;
+                margin-right: 2px;
+            }
+            QTabBar::tab:selected {
+                background: #12121E;
+                color: #89B4FA;
+                border-color: #89B4FA;
+            }
+            QTabBar::tab:hover:!selected {
+                color: #CDD6F4;
+            }
+        """)
+        root.addWidget(self.tabs)
+
+        # ── Tab 1: CLR ──────────────────────────────────────────────────────
+        clr_tab = QWidget()
+        clr_tab.setStyleSheet("background: transparent;")
+        clr_layout = QVBoxLayout(clr_tab)
+        clr_layout.setContentsMargins(0, 8, 0, 0)
+        clr_layout.setSpacing(8)
+
+        # Score + Info
         mid = QHBoxLayout()
         mid.setSpacing(16)
         self.arc = ScoreArc()
@@ -135,9 +356,9 @@ class CLRDashboard(QMainWindow):
         self.signal_label.setStyleSheet("color: #45475A; background: transparent;")
         info.addWidget(self.signal_label)
         mid.addLayout(info)
-        root.addLayout(mid)
+        clr_layout.addLayout(mid)
 
-        # ── Stress message banner (hidden by default) ─────────────────
+        # Stress banner
         self.stress_banner = QLabel("")
         self.stress_banner.setWordWrap(True)
         self.stress_banner.setAlignment(Qt.AlignCenter)
@@ -150,22 +371,31 @@ class CLRDashboard(QMainWindow):
             padding: 6px 10px;
         """)
         self.stress_banner.hide()
-        root.addWidget(self.stress_banner)
+        clr_layout.addWidget(self.stress_banner)
 
-        # ── Focus button ─────────────────────────────────────────────
+        # Focus button
         self.focus_btn = QPushButton("▶   START FOCUS SESSION")
         self.focus_btn.clicked.connect(self.toggle_focus)
         self.focus_btn.setFont(QFont("Courier New", 10, QFont.Bold))
         self.focus_btn.setFixedHeight(40)
         self.focus_btn.setCursor(Qt.PointingHandCursor)
         self._set_btn_idle()
-        root.addWidget(self.focus_btn)
+        clr_layout.addWidget(self.focus_btn)
 
-        # ── Log strip ────────────────────────────────────────────────
+        # Log strip
         self.log_label = QLabel("")
         self.log_label.setFont(QFont("Courier New", 8))
         self.log_label.setStyleSheet("color: #585B70; background: transparent;")
-        root.addWidget(self.log_label)
+        clr_layout.addWidget(self.log_label)
+
+        clr_layout.addStretch()
+        self.tabs.addTab(clr_tab, "CLR")
+
+        # ── Tab 2: Memory ───────────────────────────────────────────────────
+        self.memory_tab = MemoryTab()
+        self.tabs.addTab(self.memory_tab, "🧠 Memory")
+
+    # ── CLR styling helpers (unchanged) ────────────────────────────────────────
 
     def _set_btn_idle(self):
         self.focus_btn.setStyleSheet("""
@@ -187,20 +417,18 @@ class CLRDashboard(QMainWindow):
             QPushButton:hover { background: #1F3A1F; }
         """)
 
+    # ── Public API called from agent thread (unchanged) ────────────────────────
+
     def update_from_agent(self, data: dict):
         self.bridge.updated.emit(data)
 
     def notify_stress(self, message: str):
-        """Called from agent thread when stress voice is detected."""
         self.bridge.stress_heard.emit(message)
 
     def show_stress_message(self, message: str):
-        """Shows gentle message in UI — runs on UI thread."""
         self.stress_banner.setText(f"💬 {message}")
         self.stress_banner.show()
-        # auto-hide after 12 seconds
         QTimer.singleShot(12000, self.stress_banner.hide)
-        # also resize to fit
         self.adjustSize()
 
     def handle_update(self, data: dict):

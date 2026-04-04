@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Luke</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0f0f0f; color: #e8e8e8;
+      height: 100vh; display: flex; flex-direction: column;
+      border-radius: 16px; overflow: hidden; border: 1px solid #2a2a2a;
+    }
+
+    /* ── Titlebar ── */
+    #titlebar {
+      -webkit-app-region: drag;
+      padding: 10px 16px; background: #141414; border-bottom: 1px solid #1e1e1e;
+      display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+    }
+    #titlebar h1 { font-size: 13px; font-weight: 600; color: #ccc; flex: 1; }
+    #titlebar .controls { -webkit-app-region: no-drag; display: flex; gap: 6px; }
+    .ctrl-btn { width: 12px; height: 12px; border-radius: 50%; border: none; cursor: pointer; }
+    #btn-close { background: #ef4444; }
+    #status-dot { width: 7px; height: 7px; border-radius: 50%; background: #333; flex-shrink: 0; }
+    #status-dot.alive { background: #22c55e; }
+    #status-dot.dead  { background: #ef4444; }
+
+    /* ── Tab bar ── */
+    #tabbar {
+      -webkit-app-region: no-drag;
+      display: flex; background: #111; border-bottom: 1px solid #1a1a1a; flex-shrink: 0;
+    }
+    .tab-btn {
+      flex: 1; padding: 8px 0; font-size: 11px; font-weight: 500; color: #555;
+      background: transparent; border: none; border-bottom: 2px solid transparent;
+      cursor: pointer; transition: all 0.15s; letter-spacing: 0.3px;
+    }
+    .tab-btn:hover { color: #888; }
+    .tab-btn.active { color: #6b9fff; border-bottom-color: #1d4ed8; }
+
+    /* ── Stats strip ── */
+    #stats {
+      padding: 5px 16px; background: #0d0d0d; border-bottom: 1px solid #1a1a1a;
+      display: flex; gap: 12px; font-size: 10px; color: #444; flex-shrink: 0; flex-wrap: wrap;
+    }
+    #stats span b { color: #666; }
+    #tasks-toggle {
+      cursor: pointer; -webkit-app-region: no-drag;
+      padding: 1px 4px; border-radius: 4px; transition: background 0.15s;
+    }
+    #tasks-toggle:hover { background: #1a2030; }
+    #tasks-toggle.active b { color: #6b9fff; }
+
+    /* ── Task dropdown ── */
+    #task-dropdown { display: none; flex-direction: column; background: #0f1420; border-bottom: 1px solid #1e293b; max-height: 200px; overflow-y: auto; flex-shrink: 0; }
+    #task-dropdown.open { display: flex; }
+    #td-header { display: flex; align-items: center; justify-content: space-between; padding: 6px 14px; font-size: 10px; color: #555; border-bottom: 1px solid #1a1a1a; flex-shrink: 0; }
+    #td-header span:first-child { color: #6b9fff; font-weight: 600; }
+    #task-empty { padding: 12px; font-size: 12px; color: #444; text-align: center; }
+    .td-row { display: flex; align-items: center; gap: 8px; padding: 6px 14px; border-bottom: 1px solid #131820; transition: background 0.1s; }
+    .td-row:hover { background: #141c2a; }
+    .td-row.done { opacity: 0.35; }
+    .td-title { flex: 1; font-size: 11px; color: #d1d5db; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .td-due { font-size: 10px; color: #6ee7b7; flex-shrink: 0; }
+    .td-src { font-size: 9px; background: #1e1e2a; color: #a5b4fc; padding: 1px 5px; border-radius: 8px; flex-shrink: 0; }
+    .td-check { width: 18px; height: 18px; border-radius: 4px; border: 1px solid #2a2a2a; background: transparent; color: #444; cursor: pointer; flex-shrink: 0; font-size: 10px; transition: all 0.15s; }
+    .td-check:hover { background: #22c55e; color: #fff; border-color: #22c55e; }
+    .td-remove { width: 18px; height: 18px; border: none; background: transparent; color: #333; cursor: pointer; flex-shrink: 0; font-size: 13px; transition: color 0.15s; }
+    .td-remove:hover { color: #ef4444; }
+
+    /* ══ CHAT TAB ══ */
+    #tab-chat { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+    #messages { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+    .msg { display: flex; flex-direction: column; max-width: 82%; gap: 3px; }
+    .msg.user { align-self: flex-end; align-items: flex-end; }
+    .msg.luke { align-self: flex-start; align-items: flex-start; }
+    .bubble { padding: 9px 13px; border-radius: 14px; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+    .msg.user .bubble { background: #1d4ed8; color: #fff; border-bottom-right-radius: 4px; }
+    .msg.luke .bubble { background: #1e1e1e; color: #e8e8e8; border: 1px solid #2a2a2a; border-bottom-left-radius: 4px; }
+    .msg .ts { font-size: 10px; color: #444; padding: 0 4px; }
+    .typing .bubble { display: flex; gap: 4px; align-items: center; }
+    .dot { width: 5px; height: 5px; border-radius: 50%; background: #555; animation: bounce 1.2s infinite; }
+    .dot:nth-child(2) { animation-delay: 0.2s; }
+    .dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes bounce { 0%,80%,100% { transform:translateY(0); } 40% { transform:translateY(-4px); } }
+
+    .task-card { background: #161b27 !important; border: 1px solid #1d4ed8 !important; min-width: 220px; padding: 10px 13px !important; display: flex; flex-direction: column; gap: 5px; }
+    .tc-header { font-size: 11px; color: #6b9fff; margin-bottom: 2px; }
+    .tc-title  { font-size: 13px; font-weight: 600; color: #e8e8e8; }
+    .tc-ctx    { font-size: 11px; color: #6b7280; font-style: italic; }
+    .tc-meta   { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
+    .tc-due    { font-size: 10px; background: #1e2a1e; color: #6ee7b7; padding: 2px 7px; border-radius: 10px; }
+    .tc-pri    { font-size: 10px; background: #2a1e1e; color: #fca5a5; padding: 2px 7px; border-radius: 10px; }
+    .tc-src    { font-size: 10px; background: #1e1e2a; color: #a5b4fc; padding: 2px 7px; border-radius: 10px; }
+    .tc-actions { margin-top: 4px; }
+    .tc-done-btn { font-size: 11px; padding: 3px 10px; border-radius: 6px; border: 1px solid #2a2a2a; background: #1e1e1e; color: #6b9fff; cursor: pointer; transition: all 0.15s; }
+    .tc-done-btn:hover { background: #1d4ed8; color: #fff; border-color: #1d4ed8; }
+    .tc-done-label { font-size: 11px; color: #22c55e; }
+    .task-list { background: #0f1420 !important; border: 1px solid #1e293b !important; min-width: 260px; padding: 10px 13px !important; }
+    .tl-body { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+    .tl-row { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: 6px; transition: background 0.1s; }
+    .tl-row:hover { background: #1a2030; }
+    .tl-num { font-size: 10px; color: #444; width: 14px; flex-shrink: 0; }
+    .tl-title { flex: 1; font-size: 12px; color: #d1d5db; }
+    .tl-due { color: #6ee7b7; font-size: 10px; }
+    .tl-screen { font-size: 9px; background: #1e1e2a; color: #a5b4fc; padding: 1px 5px; border-radius: 8px; }
+    .tl-done-btn { font-size: 11px; width: 22px; height: 22px; border-radius: 5px; border: 1px solid #2a2a2a; background: transparent; color: #444; cursor: pointer; flex-shrink: 0; transition: all 0.15s; display: flex; align-items: center; justify-content: center; }
+    .tl-done-btn:hover { background: #22c55e; color: #fff; border-color: #22c55e; }
+    .tl-empty { font-size: 12px; color: #555; padding: 4px 0; }
+
+    #chips { padding: 7px 14px; display: flex; gap: 6px; flex-wrap: wrap; background: #111; border-top: 1px solid #1a1a1a; flex-shrink: 0; }
+    .chip { font-size: 10px; padding: 3px 9px; border-radius: 20px; border: 1px solid #2a2a2a; background: #1a1a1a; color: #555; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+    .chip:hover { border-color: #1d4ed8; color: #93c5fd; }
+
+    #input-bar { padding: 9px 13px; border-top: 1px solid #1e1e1e; background: #141414; display: flex; gap: 8px; flex-shrink: 0; }
+    #input { flex: 1; background: #1e1e1e; border: 1px solid #2a2a2a; border-radius: 10px; padding: 7px 12px; color: #e8e8e8; font-size: 13px; resize: none; outline: none; font-family: inherit; max-height: 80px; transition: border-color 0.2s; }
+    #input:focus { border-color: #1d4ed8; }
+    #input::placeholder { color: #444; }
+    #send-btn { background: #1d4ed8; border: none; border-radius: 10px; padding: 0 14px; color: #fff; font-size: 13px; cursor: pointer; align-self: flex-end; height: 34px; transition: background 0.2s; }
+    #send-btn:hover { background: #1e40af; }
+    #send-btn:disabled { background: #1e2a4a; cursor: not-allowed; }
+    #messages::-webkit-scrollbar { width: 3px; }
+    #messages::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 4px; }
+
+    /* ══ PRODUCTIVITY TAB ══ */
+    #tab-prod { display: none; flex-direction: column; flex: 1; overflow: hidden; }
+    #tab-prod.active { display: flex; }
+
+    #prod-body { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+    #prod-body::-webkit-scrollbar { width: 3px; }
+    #prod-body::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 4px; }
+
+    /* score cards */
+    .score-row { display: flex; gap: 8px; }
+    .score-card { flex: 1; background: #141414; border: 1px solid #1e1e1e; border-radius: 10px; padding: 10px 8px; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+    .score-val { font-size: 26px; font-weight: 700; line-height: 1; }
+    .score-val.green  { color: #22c55e; }
+    .score-val.yellow { color: #eab308; }
+    .score-val.red    { color: #ef4444; }
+    .score-val.blue   { color: #6b9fff; }
+    .score-label { font-size: 9px; color: #555; text-align: center; line-height: 1.3; }
+    .risk-badge { display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 20px; }
+    .risk-badge.Low    { background: #1a2e1a; color: #4ade80; }
+    .risk-badge.Medium { background: #2a2510; color: #fbbf24; }
+    .risk-badge.High   { background: #2a1515; color: #f87171; }
+
+    /* sections */
+    .p-section { background: #111; border: 1px solid #1a1a1a; border-radius: 10px; overflow: hidden; }
+    .p-sec-title { font-size: 10px; font-weight: 600; color: #555; padding: 7px 12px; border-bottom: 1px solid #1a1a1a; text-transform: uppercase; letter-spacing: 0.5px; display: flex; justify-content: space-between; align-items: center; }
+    .p-sec-body { padding: 10px 12px; }
+    .refresh-btn { font-size: 11px; color: #444; background: transparent; border: none; cursor: pointer; padding: 1px 4px; border-radius: 4px; }
+    .refresh-btn:hover { color: #6b9fff; }
+
+    /* summary bar */
+    .summary-bar { display: flex; height: 7px; border-radius: 6px; overflow: hidden; gap: 2px; margin: 6px 0; }
+    .summary-seg { border-radius: 3px; }
+    .split-labels { display: flex; gap: 12px; font-size: 10px; color: #555; margin-top: 3px; }
+    .split-labels b { color: #888; }
+
+    /* category bars */
+    .cat-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .cat-row:last-child { margin-bottom: 0; }
+    .cat-icon { font-size: 11px; width: 16px; flex-shrink: 0; }
+    .cat-name { font-size: 10px; color: #999; width: 80px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .cat-bar-wrap { flex: 1; background: #1a1a1a; border-radius: 4px; height: 5px; overflow: hidden; }
+    .cat-bar { height: 100%; border-radius: 4px; transition: width 0.6s ease; }
+    .cat-time { font-size: 10px; color: #555; width: 32px; text-align: right; flex-shrink: 0; }
+
+    /* bar colors */
+    .bar-coding             { background: #3b82f6; }
+    .bar-writing            { background: #8b5cf6; }
+    .bar-learning           { background: #06b6d4; }
+    .bar-research           { background: #6366f1; }
+    .bar-email              { background: #f59e0b; }
+    .bar-meeting            { background: #ec4899; }
+    .bar-ai_tools           { background: #10b981; }
+    .bar-design             { background: #f97316; }
+    .bar-productivity_tools { background: #84cc16; }
+    .bar-job_search         { background: #a78bfa; }
+    .bar-communication      { background: #60a5fa; }
+    .bar-browsing           { background: #94a3b8; }
+    .bar-youtube_video      { background: #ef4444; }
+    .bar-social_media       { background: #f43f5e; }
+    .bar-gaming             { background: #dc2626; }
+    .bar-distraction        { background: #b91c1c; }
+    .bar-idle               { background: #374151; }
+    .bar-other              { background: #374151; }
+
+    /* hourly chart */
+    .hourly-grid { display: flex; gap: 3px; align-items: flex-end; height: 48px; padding: 2px 0; }
+    .hour-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    .hour-bar { width: 100%; border-radius: 3px 3px 0 0; min-height: 2px; }
+    .hour-lbl { font-size: 7px; color: #444; }
+
+    /* activity feed */
+    .act-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid #141414; }
+    .act-row:last-child { border-bottom: none; }
+    .act-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .act-dot.p  { background: #22c55e; }
+    .act-dot.u  { background: #ef4444; }
+    .act-dot.n  { background: #6b7280; }
+    .act-title { flex: 1; font-size: 11px; color: #ccc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .act-cat   { font-size: 9px; color: #555; flex-shrink: 0; }
+    .act-time  { font-size: 9px; color: #3a3a3a; flex-shrink: 0; }
+
+    .prod-loading { text-align: center; padding: 30px; font-size: 12px; color: #444; }
+    .prod-empty   { text-align: center; padding: 20px; font-size: 11px; color: #333; }
+  </style>
+</head>
+<body>
+
+<!-- Titlebar -->
+<div id="titlebar">
+  <div id="status-dot"></div>
+  <h1>🧠 Luke SuperMemory</h1>
+  <div class="controls">
+    <button class="ctrl-btn" id="btn-close" onclick="window.luke.closeChat()"></button>
+  </div>
+</div>
+
+<!-- Tab bar -->
+<div id="tabbar">
+  <button class="tab-btn active" id="tbtn-chat" onclick="switchTab('chat')">💬 Memory Chat</button>
+  <button class="tab-btn"        id="tbtn-prod" onclick="switchTab('prod')">📊 Productivity</button>
+</div>
+
+<!-- Stats strip -->
+<div id="stats">
+  <span>📸 <b id="s-buf">—</b></span>
+  <span>🪟 <b id="s-win">—</b></span>
+  <span>💼 <b id="s-jobs">—</b></span>
+  <span>🔗 <b id="s-links">—</b></span>
+  <span id="tasks-toggle" onclick="toggleTaskDropdown()">📋 <b id="s-tasks">—</b></span>
+  <span style="margin-left:auto" id="s-prod-live"></span>
+</div>
+
+<!-- Task dropdown -->
+<div id="task-dropdown">
+  <div id="td-header">
+    <span>📋 Tasks</span>
+    <span>✓ complete · ✕ remove</span>
+  </div>
+  <div id="task-empty" style="display:none">No pending tasks 🎉</div>
+  <div id="td-list"></div>
+</div>
+
+<!-- ══ CHAT TAB ══ -->
+<div id="tab-chat">
+  <div id="messages">
+    <div class="msg luke">
+      <div class="bubble">Hey! I'm watching your screen and building memory. Ask me anything — or switch to 📊 Productivity for your dashboard.</div>
+      <span class="ts">now</span>
+    </div>
+  </div>
+  <div id="chips">
+    <div class="chip" onclick="send('What was I working on at 2pm?')">at 2pm?</div>
+    <div class="chip" onclick="send('List all companies I applied to')">companies applied</div>
+    <div class="chip" onclick="send('What links did I open today?')">links today</div>
+    <div class="chip" onclick="send('Who is Sarah?')">who is Sarah?</div>
+    <div class="chip" onclick="send('/tasks')">/tasks</div>
+  </div>
+  <div id="input-bar">
+    <textarea id="input" rows="1" placeholder="Ask anything · /task add task · /tasks · /done 1"></textarea>
+    <button id="send-btn" onclick="sendMessage()">Send</button>
+  </div>
+</div>
+
+<!-- ══ PRODUCTIVITY TAB ══ -->
+<div id="tab-prod">
+  <div id="prod-body">
+    <div class="prod-loading" id="prod-loading">Loading dashboard…</div>
+
+    <!-- Score cards -->
+    <div class="score-row" id="prod-scores" style="display:none">
+      <div class="score-card">
+        <div class="score-val" id="ps-score">—</div>
+        <div class="score-label">Productivity</div>
+      </div>
+      <div class="score-card">
+        <div class="score-val blue" id="ps-focus">—</div>
+        <div class="score-label">Focus</div>
+      </div>
+      <div class="score-card">
+        <div style="margin-top:4px"><span class="risk-badge" id="ps-risk">—</span></div>
+        <div class="score-label" style="margin-top:4px">Risk Level</div>
+      </div>
+      <div class="score-card">
+        <div class="score-val" id="ps-switches" style="color:#a78bfa">—</div>
+        <div class="score-label">App Switches</div>
+      </div>
+    </div>
+
+    <!-- Time split -->
+    <div class="p-section" id="p-split" style="display:none">
+      <div class="p-sec-title">
+        Today's Time Split
+        <span id="p-total" style="color:#3a3a3a;font-weight:400"></span>
+      </div>
+      <div class="p-sec-body">
+        <div class="summary-bar" id="p-splitbar"></div>
+        <div class="split-labels">
+          <span><span style="color:#22c55e">■</span> Productive <b id="pp-p">—</b></span>
+          <span><span style="color:#6b7280">■</span> Neutral <b id="pp-n">—</b></span>
+          <span><span style="color:#ef4444">■</span> Unproductive <b id="pp-u">—</b></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Category breakdown -->
+    <div class="p-section" id="p-cats" style="display:none">
+      <div class="p-sec-title">
+        Category Breakdown
+        <button class="refresh-btn" onclick="loadProductivity()">↻ refresh</button>
+      </div>
+      <div class="p-sec-body" id="p-cats-body"></div>
+    </div>
+
+    <!-- Hourly chart -->
+    <div class="p-section" id="p-hourly" style="display:none">
+      <div class="p-sec-title">Hourly Productivity Score</div>
+      <div class="p-sec-body">
+        <div class="hourly-grid" id="p-hourly-grid"></div>
+        <div style="display:flex;justify-content:space-between;font-size:9px;color:#333;margin-top:4px">
+          <span style="color:#22c55e">■ high ≥70</span>
+          <span style="color:#eab308">■ medium 45–70</span>
+          <span style="color:#ef4444">■ low &lt;45</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent activity -->
+    <div class="p-section" id="p-activity" style="display:none">
+      <div class="p-sec-title">Recent Activity</div>
+      <div class="p-sec-body" id="p-act-body"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  const BACKEND = "http://localhost:5000";
+  const messagesEl = document.getElementById("messages");
+  const inputEl    = document.getElementById("input");
+  const sendBtn    = document.getElementById("send-btn");
+  const statusDot  = document.getElementById("status-dot");
+
+  // ── Category metadata ──────────────────────────────────────────────────────
+  const CAT = {
+    coding:             { icon:"💻", label:"Coding",        p: true  },
+    writing:            { icon:"✍️",  label:"Writing",       p: true  },
+    learning:           { icon:"📚", label:"Learning",      p: true  },
+    research:           { icon:"🔬", label:"Research",      p: true  },
+    email:              { icon:"📧", label:"Email",         p: true  },
+    meeting:            { icon:"🎥", label:"Meeting",       p: true  },
+    ai_tools:           { icon:"🤖", label:"AI Tools",      p: true  },
+    design:             { icon:"🎨", label:"Design",        p: true  },
+    productivity_tools: { icon:"📅", label:"Planner",       p: true  },
+    job_search:         { icon:"💼", label:"Job Search",    p: false },
+    communication:      { icon:"💬", label:"Chat",          p: false },
+    browsing:           { icon:"🌐", label:"Browsing",      p: false },
+    youtube_video:      { icon:"▶️",  label:"YouTube",       p: false },
+    social_media:       { icon:"📱", label:"Social Media",  p: false },
+    gaming:             { icon:"🎮", label:"Gaming",        p: false },
+    distraction:        { icon:"🎯", label:"Distraction",   p: false },
+    idle:               { icon:"💤", label:"Idle",          p: false },
+    other:              { icon:"❓", label:"Other",         p: false },
+  };
+
+  const UNPROD = new Set(["youtube_video","social_media","gaming","distraction"]);
+  const PROD   = new Set(["coding","writing","learning","research","email","meeting","ai_tools","design","productivity_tools"]);
+
+  function fmtS(s) {
+    if (!s || s < 1) return "0s";
+    if (s < 60) return `${s}s`;
+    if (s < 3600) return `${Math.round(s/60)}m`;
+    return `${Math.floor(s/3600)}h${Math.round((s%3600)/60)}m`;
+  }
+  function esc(s) { return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+  function renderText(s) { return esc(s).replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>").replace(/\n/g,"<br>"); }
+  function tsNow() { return new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}); }
+  function scrollBottom() { messagesEl.scrollTop = messagesEl.scrollHeight; }
+
+  // ── Tab switching ──────────────────────────────────────────────────────────
+  let currentTab = "chat";
+  function switchTab(tab) {
+    currentTab = tab;
+    document.getElementById("tab-chat").style.display = tab === "chat" ? "flex" : "none";
+    document.getElementById("tab-prod").style.display = tab === "prod" ? "flex" : "none";
+    document.getElementById("tbtn-chat").classList.toggle("active", tab === "chat");
+    document.getElementById("tbtn-prod").classList.toggle("active", tab === "prod");
+    if (tab === "prod") loadProductivity();
+  }
+
+  // ── Status polling ─────────────────────────────────────────────────────────
+  async function pollStatus() {
+    try {
+      const r = await fetch(`${BACKEND}/status`);
+      const d = await r.json();
+      statusDot.className = "alive";
+      document.getElementById("s-buf").textContent   = d.buffer_snapshots;
+      document.getElementById("s-win").textContent   = d.windows_summarized;
+      document.getElementById("s-jobs").textContent  = d.jobs_tracked;
+      document.getElementById("s-links").textContent = d.links_tracked;
+      document.getElementById("s-tasks").textContent = d.tasks_pending ?? "—";
+      if (d.productivity_score != null) {
+        const sc  = Math.round(d.productivity_score);
+        const col = sc >= 70 ? "#22c55e" : sc >= 45 ? "#eab308" : "#ef4444";
+        document.getElementById("s-prod-live").innerHTML =
+          `<span style="color:${col};font-weight:700">${sc}</span><span style="color:#444"> prod</span>`;
+      }
+      if (document.getElementById("task-dropdown").classList.contains("open")) loadTaskDropdown();
+      if (currentTab === "prod") loadProductivity();
+    } catch { statusDot.className = "dead"; }
+  }
+  pollStatus();
+  setInterval(pollStatus, 15000);
+
+  // ── Task dropdown ──────────────────────────────────────────────────────────
+  function toggleTaskDropdown() {
+    const panel = document.getElementById("task-dropdown");
+    const tog   = document.getElementById("tasks-toggle");
+    const open  = panel.classList.contains("open");
+    if (open) { panel.classList.remove("open"); tog.classList.remove("active"); }
+    else       { panel.classList.add("open");    tog.classList.add("active");    loadTaskDropdown(); }
+  }
+
+  async function loadTaskDropdown() {
+    const list  = document.getElementById("td-list");
+    const empty = document.getElementById("task-empty");
+    try {
+      const r = await fetch(`${BACKEND}/tasks`);
+      const d = await r.json();
+      const tasks = d.tasks || [];
+      list.innerHTML = "";
+      if (!tasks.length) { empty.style.display = "block"; return; }
+      empty.style.display = "none";
+      tasks.forEach(t => {
+        const due = t.due_date ? `<span class="td-due">📅 ${t.due_date}</span>` : "";
+        const src = t.source === "screen" ? `<span class="td-src">📷</span>` : "";
+        const row = document.createElement("div");
+        row.className = "td-row"; row.id = `td-${t.id}`;
+        row.innerHTML = `
+          <button class="td-check" onclick="tdDone('${t.id}')">✓</button>
+          <span class="td-title" title="${esc(t.title)}">${esc(t.title)}</span>
+          ${src}${due}
+          <button class="td-remove" onclick="tdRemove('${t.id}')">✕</button>`;
+        list.appendChild(row);
+      });
+    } catch { list.innerHTML = `<div style="padding:10px 14px;font-size:11px;color:#555">Could not load</div>`; }
+  }
+
+  async function tdDone(id) {
+    const row = document.getElementById(`td-${id}`);
+    if (row) { row.classList.add("done"); row.querySelector(".td-check").disabled = true; }
+    try {
+      await fetch(`${BACKEND}/task/done`, {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});
+      setTimeout(() => { row?.remove(); pollStatus(); }, 600);
+    } catch { row?.classList.remove("done"); }
+  }
+
+  async function tdRemove(id) {
+    const row = document.getElementById(`td-${id}`);
+    if (row) row.style.opacity = "0.3";
+    try {
+      await fetch(`${BACKEND}/task/remove`, {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});
+      setTimeout(() => { row?.remove(); pollStatus(); }, 300);
+    } catch { if (row) row.style.opacity = "1"; }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // PRODUCTIVITY DASHBOARD
+  // ══════════════════════════════════════════════════════════════════════════
+
+  async function loadProductivity() {
+    try {
+      const [repR, liveR] = await Promise.all([
+        fetch(`${BACKEND}/productivity/report`),
+        fetch(`${BACKEND}/productivity`),
+      ]);
+      const rep  = await repR.json();
+      const live = await liveR.json().catch(() => ({}));
+      renderDashboard(rep, live);
+    } catch {
+      document.getElementById("prod-loading").textContent = "⚠️ Backend offline — run: python router.py";
+    }
+  }
+
+  function renderDashboard(rep, live) {
+    document.getElementById("prod-loading").style.display = "none";
+
+    // ── Score cards ────────────────────────────────────────────────────────
+    document.getElementById("prod-scores").style.display = "flex";
+
+    const sc  = live.productivity_score;
+    const scEl = document.getElementById("ps-score");
+    if (sc != null) {
+      scEl.textContent = Math.round(sc);
+      scEl.className   = `score-val ${sc>=70?"green":sc>=45?"yellow":"red"}`;
+    } else { scEl.textContent = "—"; scEl.className = "score-val"; }
+
+    const fc = live.focus_score;
+    document.getElementById("ps-focus").textContent = fc != null ? Math.round(fc) : "—";
+
+    const rk = live.risk_level;
+    const rkEl = document.getElementById("ps-risk");
+    rkEl.textContent = rk || "—";
+    rkEl.className   = `risk-badge ${rk || ""}`;
+
+    document.getElementById("ps-switches").textContent = live.switch_count ?? "—";
+
+    // ── Time split ─────────────────────────────────────────────────────────
+    const total  = rep.total_tracked_seconds || 0;
+    const prodS  = rep.productive_seconds    || 0;
+    const unpS   = rep.unproductive_seconds  || 0;
+    const neutS  = total - prodS - unpS;
+
+    document.getElementById("p-split").style.display = "block";
+    document.getElementById("p-total").textContent   = total ? fmtS(total) + " tracked today" : "";
+
+    const pP = total ? (prodS/total*100) : 0;
+    const pU = total ? (unpS /total*100) : 0;
+    const pN = 100 - pP - pU;
+
+    document.getElementById("p-splitbar").innerHTML = `
+      <div class="summary-seg" style="width:${pP}%;background:#22c55e;border-radius:3px"></div>
+      <div class="summary-seg" style="width:${pN}%;background:#374151;border-radius:3px"></div>
+      <div class="summary-seg" style="width:${pU}%;background:#ef4444;border-radius:3px"></div>`;
+    document.getElementById("pp-p").textContent = `${Math.round(pP)}%`;
+    document.getElementById("pp-n").textContent = `${Math.round(pN)}%`;
+    document.getElementById("pp-u").textContent = `${Math.round(pU)}%`;
+
+    // ── Category bars ──────────────────────────────────────────────────────
+    const cats = (rep.category_breakdown || []).filter(c => c.seconds > 0);
+    if (cats.length) {
+      document.getElementById("p-cats").style.display = "block";
+      const maxS = Math.max(...cats.map(c => c.seconds), 1);
+      document.getElementById("p-cats-body").innerHTML = cats.slice(0, 12).map(c => {
+        const m   = CAT[c.category] || { icon:"❓", label: c.category };
+        const pct = Math.round(c.seconds / maxS * 100);
+        return `<div class="cat-row">
+          <span class="cat-icon">${m.icon}</span>
+          <span class="cat-name">${m.label}</span>
+          <div class="cat-bar-wrap"><div class="cat-bar bar-${c.category}" style="width:${pct}%"></div></div>
+          <span class="cat-time">${fmtS(c.seconds)}</span>
+        </div>`;
+      }).join("");
+    }
+
+    // ── Hourly chart ───────────────────────────────────────────────────────
+    const hours = rep.hourly_scores || [];
+    if (hours.length) {
+      document.getElementById("p-hourly").style.display = "block";
+      const hMap = {};
+      hours.forEach(h => { hMap[h.hour] = h; });
+      const nowH = new Date().getHours();
+      const grid = document.getElementById("p-hourly-grid");
+      grid.innerHTML = "";
+      for (let h = Math.max(0, nowH - 11); h <= nowH; h++) {
+        const d    = hMap[h];
+        const s    = d ? d.avg_score : null;
+        const pct  = s != null ? Math.max(6, Math.round(s)) : 6;
+        const col  = s == null ? "#2a2a2a" : s >= 70 ? "#22c55e" : s >= 45 ? "#eab308" : "#ef4444";
+        const colEl = document.createElement("div");
+        colEl.className = "hour-col";
+        colEl.innerHTML = `
+          <div class="hour-bar" style="height:${pct}%;background:${col}" title="${h}:00 — ${s!=null?Math.round(s):"no data"}"></div>
+          <div class="hour-lbl">${h%12||12}${h<12?"a":"p"}</div>`;
+        grid.appendChild(colEl);
+      }
+    }
+
+    // ── Recent activity ────────────────────────────────────────────────────
+    const events = (rep.recent_events || []).slice(0, 15);
+    if (events.length) {
+      document.getElementById("p-activity").style.display = "block";
+      document.getElementById("p-act-body").innerHTML = events.map(e => {
+        const dotCls = e.productive ? "p" : UNPROD.has(e.screen_category) ? "u" : "n";
+        const m      = CAT[e.screen_category] || { icon:"❓", label: e.screen_category };
+        const t      = (e.ts || "").slice(11, 16);
+        const title  = e.screen_title || e.screen_category || "—";
+        return `<div class="act-row">
+          <div class="act-dot ${dotCls}"></div>
+          <span class="act-title" title="${esc(title)}">${m.icon} ${esc(title)}</span>
+          <span class="act-cat">${m.label}</span>
+          <span class="act-time">${t}</span>
+        </div>`;
+      }).join("");
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // CHAT LOGIC
+  // ══════════════════════════════════════════════════════════════════════════
+
+  inputEl.addEventListener("input", () => {
+    inputEl.style.height = "auto";
+    inputEl.style.height = Math.min(inputEl.scrollHeight, 80) + "px";
+  });
+  inputEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  });
+
+  function appendMsg(role, html) {
+    const div = document.createElement("div");
+    div.className = `msg ${role}`;
+    div.innerHTML = `<div class="bubble">${html}</div><span class="ts">${tsNow()}</span>`;
+    messagesEl.appendChild(div); scrollBottom(); return div;
+  }
+
+  function appendTyping() {
+    const div = document.createElement("div");
+    div.className = "msg luke typing";
+    div.innerHTML = `<div class="bubble"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>`;
+    messagesEl.appendChild(div); scrollBottom(); return div;
+  }
+
+  function appendTaskCard(task, headerText) {
+    const due = task.due_date ? `<span class="tc-due">📅 ${task.due_date}</span>` : "";
+    const pri = task.priority === "high" ? `<span class="tc-pri">🔴 high</span>` : "";
+    const src = task.source === "screen" ? `<span class="tc-src">📷 screen</span>` : "";
+    const ctx = task.person_context ? `<div class="tc-ctx">${esc(task.person_context)}</div>` : "";
+    const btn = task.status === "pending"
+      ? `<button class="tc-done-btn" onclick="completeTask('${task.id}',this)">Mark done</button>`
+      : `<span class="tc-done-label">✅ done</span>`;
+    const div = document.createElement("div");
+    div.className = "msg luke";
+    div.innerHTML = `
+      <div class="bubble task-card">
+        <div class="tc-header">${renderText(headerText)}</div>
+        <div class="tc-title">${esc(task.title)}</div>${ctx}
+        <div class="tc-meta">${due}${pri}${src}</div>
+        <div class="tc-actions">${btn}</div>
+      </div><span class="ts">${tsNow()}</span>`;
+    messagesEl.appendChild(div); scrollBottom();
+  }
+
+  function appendTaskList(tasks, headerText) {
+    const div = document.createElement("div");
+    div.className = "msg luke";
+    const rows = !tasks.length
+      ? `<div class="tl-empty">No pending tasks 🎉</div>`
+      : tasks.map((t,i) => {
+          const due = t.due_date ? ` · <span class="tl-due">${t.due_date}</span>` : "";
+          const pri = t.priority === "high" ? " 🔴" : "";
+          const src = t.source === "screen" ? " <span class='tl-screen'>screen</span>" : "";
+          return `<div class="tl-row" id="tlrow-${t.id}">
+            <span class="tl-num">${i+1}</span>
+            <span class="tl-title">${esc(t.title)}${pri}${src}${due}</span>
+            <button class="tl-done-btn" onclick="completeTask('${t.id}',this)">✓</button>
+          </div>`;
+        }).join("");
+    div.innerHTML = `
+      <div class="bubble task-list">
+        <div class="tc-header">${renderText(headerText)}</div>
+        <div class="tl-body">${rows}</div>
+      </div><span class="ts">${tsNow()}</span>`;
+    messagesEl.appendChild(div); scrollBottom();
+  }
+
+  async function completeTask(id, btn) {
+    btn.disabled = true; btn.textContent = "…";
+    try {
+      const r = await fetch(`${BACKEND}/task/done`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});
+      const d = await r.json();
+      if (d.ok) {
+        const row = document.getElementById(`tlrow-${id}`);
+        if (row) { row.style.opacity="0.4"; row.style.textDecoration="line-through"; btn.remove(); }
+        else btn.textContent = "✅";
+        pollStatus();
+      } else { btn.textContent="✓"; btn.disabled=false; }
+    } catch { btn.textContent="✓"; btn.disabled=false; }
+  }
+
+  async function sendMessage() {
+    const text = inputEl.value.trim();
+    if (!text) return;
+    inputEl.value = ""; inputEl.style.height = "auto";
+    sendBtn.disabled = true;
+    appendMsg("user", renderText(text));
+    const typing = appendTyping();
+    try {
+      const r = await fetch(`${BACKEND}/chat`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:text})});
+      const d = await r.json();
+      typing.remove();
+      if (d.type==="task_added"||d.type==="task_duplicate") { appendTaskCard(d.task,d.response); pollStatus(); }
+      else if (d.type==="task_list") appendTaskList(d.tasks||[],d.response.split("\n")[0]);
+      else if (d.type==="task_done") { appendMsg("luke",renderText(d.response)); pollStatus(); }
+      else appendMsg("luke",renderText(d.response||d.error||"No response"));
+    } catch { typing.remove(); appendMsg("luke","⚠️ Backend offline. Run: python router.py"); }
+    sendBtn.disabled = false;
+    inputEl.focus();
+  }
+
+  function send(text) { inputEl.value = text; sendMessage(); }
+</script>
+</body>
+</html>

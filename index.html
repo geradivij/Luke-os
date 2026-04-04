@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Luke SuperMemory</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0f0f0f;
+      color: #e8e8e8;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    header {
+      padding: 16px 24px;
+      border-bottom: 1px solid #1e1e1e;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: #141414;
+    }
+
+    header h1 {
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: -0.2px;
+    }
+
+    header span.sub {
+      font-size: 12px;
+      color: #555;
+      margin-left: auto;
+    }
+
+    #status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #333;
+      flex-shrink: 0;
+      transition: background 0.3s;
+    }
+    #status-dot.alive  { background: #22c55e; }
+    #status-dot.dead   { background: #ef4444; }
+
+    /* ── Stats bar ── */
+    #stats {
+      padding: 8px 24px;
+      background: #111;
+      border-bottom: 1px solid #1a1a1a;
+      display: flex;
+      gap: 20px;
+      font-size: 11px;
+      color: #444;
+    }
+    #stats span b { color: #888; }
+
+    /* ── Messages ── */
+    #messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .msg {
+      display: flex;
+      flex-direction: column;
+      max-width: 75%;
+      gap: 4px;
+    }
+
+    .msg.user  { align-self: flex-end; align-items: flex-end; }
+    .msg.luke  { align-self: flex-start; align-items: flex-start; }
+
+    .bubble {
+      padding: 10px 14px;
+      border-radius: 14px;
+      font-size: 14px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .msg.user .bubble {
+      background: #1d4ed8;
+      color: #fff;
+      border-bottom-right-radius: 4px;
+    }
+
+    .msg.luke .bubble {
+      background: #1e1e1e;
+      color: #e8e8e8;
+      border-bottom-left-radius: 4px;
+      border: 1px solid #2a2a2a;
+    }
+
+    .msg .ts {
+      font-size: 10px;
+      color: #444;
+      padding: 0 4px;
+    }
+
+    /* typing indicator */
+    .typing .bubble {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+      padding: 12px 16px;
+    }
+    .dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: #555;
+      animation: bounce 1.2s infinite;
+    }
+    .dot:nth-child(2) { animation-delay: 0.2s; }
+    .dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes bounce {
+      0%, 80%, 100% { transform: translateY(0); }
+      40%           { transform: translateY(-5px); }
+    }
+
+    /* ── Input bar ── */
+    #input-bar {
+      padding: 16px 24px;
+      border-top: 1px solid #1e1e1e;
+      background: #141414;
+      display: flex;
+      gap: 10px;
+    }
+
+    #input {
+      flex: 1;
+      background: #1e1e1e;
+      border: 1px solid #2a2a2a;
+      border-radius: 10px;
+      padding: 10px 14px;
+      color: #e8e8e8;
+      font-size: 14px;
+      resize: none;
+      outline: none;
+      transition: border-color 0.2s;
+      font-family: inherit;
+      max-height: 120px;
+    }
+    #input:focus { border-color: #1d4ed8; }
+    #input::placeholder { color: #444; }
+
+    #send {
+      background: #1d4ed8;
+      border: none;
+      border-radius: 10px;
+      padding: 0 18px;
+      color: #fff;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background 0.2s;
+      align-self: flex-end;
+      height: 42px;
+    }
+    #send:hover   { background: #1e40af; }
+    #send:disabled { background: #1e2a4a; cursor: not-allowed; }
+
+    /* ── Suggestions ── */
+    #suggestions {
+      padding: 0 24px 12px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      background: #141414;
+    }
+
+    .chip {
+      font-size: 11px;
+      padding: 5px 10px;
+      border-radius: 20px;
+      border: 1px solid #2a2a2a;
+      background: #1a1a1a;
+      color: #666;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .chip:hover { border-color: #1d4ed8; color: #93c5fd; }
+
+    /* scrollbar */
+    #messages::-webkit-scrollbar { width: 4px; }
+    #messages::-webkit-scrollbar-track { background: transparent; }
+    #messages::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 4px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div id="status-dot"></div>
+  <h1>🧠 Luke SuperMemory</h1>
+  <span class="sub" id="status-text">connecting...</span>
+</header>
+
+<div id="stats">
+  <span>📸 buffer: <b id="s-buf">—</b></span>
+  <span>🪟 windows: <b id="s-win">—</b></span>
+  <span>💼 jobs: <b id="s-jobs">—</b></span>
+  <span>👤 people: <b id="s-ppl">—</b></span>
+  <span>🔗 links: <b id="s-links">—</b></span>
+</div>
+
+<div id="messages">
+  <div class="msg luke">
+    <div class="bubble">Hey! I'm Luke, your second brain. I'm watching your screen in the background and building memory. Ask me anything about what you've been working on.</div>
+    <span class="ts">now</span>
+  </div>
+</div>
+
+<div id="suggestions">
+  <div class="chip" onclick="send('What was I working on at 2pm?')">What was I working on at 2pm?</div>
+  <div class="chip" onclick="send('List all companies I applied to')">Companies I applied to</div>
+  <div class="chip" onclick="send('What links did I open today?')">Links opened today</div>
+  <div class="chip" onclick="send('Who is Sarah?')">Who is Sarah?</div>
+  <div class="chip" onclick="send('Any upcoming deadlines?')">Upcoming deadlines</div>
+  <div class="chip" onclick="send('What research did I do?')">Research done</div>
+</div>
+
+<div id="input-bar">
+  <textarea id="input" rows="1" placeholder="Ask Luke anything about your day..."></textarea>
+  <button id="send" onclick="sendMessage()">Send</button>
+</div>
+
+<script>
+  const BACKEND = "http://localhost:5000";
+
+  const messagesEl  = document.getElementById("messages");
+  const inputEl     = document.getElementById("input");
+  const sendBtn     = document.getElementById("send");
+  const statusDot   = document.getElementById("status-dot");
+  const statusText  = document.getElementById("status-text");
+
+  // ── Status polling ────────────────────────────────────────────────────────
+  async function pollStatus() {
+    try {
+      const r = await fetch(`${BACKEND}/status`);
+      const d = await r.json();
+      statusDot.className = "alive";
+      statusText.textContent = "connected";
+      document.getElementById("s-buf").textContent   = d.buffer_snapshots;
+      document.getElementById("s-win").textContent   = d.windows_summarized;
+      document.getElementById("s-jobs").textContent  = d.jobs_tracked;
+      document.getElementById("s-ppl").textContent   = d.people_tracked;
+      document.getElementById("s-links").textContent = d.links_tracked;
+    } catch {
+      statusDot.className = "dead";
+      statusText.textContent = "backend offline — run: python router.py";
+    }
+  }
+  pollStatus();
+  setInterval(pollStatus, 10000);
+
+  // ── Auto-resize textarea ──────────────────────────────────────────────────
+  inputEl.addEventListener("input", () => {
+    inputEl.style.height = "auto";
+    inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + "px";
+  });
+
+  inputEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+
+  // ── Append a message bubble ───────────────────────────────────────────────
+  function appendMsg(role, text) {
+    const now = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const div = document.createElement("div");
+    div.className = `msg ${role}`;
+    div.innerHTML = `
+      <div class="bubble">${escHtml(text)}</div>
+      <span class="ts">${now}</span>
+    `;
+    messagesEl.appendChild(div);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    return div;
+  }
+
+  function appendTyping() {
+    const div = document.createElement("div");
+    div.className = "msg luke typing";
+    div.innerHTML = `<div class="bubble"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>`;
+    messagesEl.appendChild(div);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    return div;
+  }
+
+  function escHtml(s) {
+    return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  }
+
+  // ── Send ──────────────────────────────────────────────────────────────────
+  async function sendMessage() {
+    const text = inputEl.value.trim();
+    if (!text) return;
+
+    inputEl.value = "";
+    inputEl.style.height = "auto";
+    sendBtn.disabled = true;
+
+    appendMsg("user", text);
+    const typing = appendTyping();
+
+    try {
+      const r = await fetch(`${BACKEND}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text })
+      });
+      const d = await r.json();
+      typing.remove();
+      appendMsg("luke", d.response || d.error || "No response");
+    } catch (err) {
+      typing.remove();
+      appendMsg("luke", "⚠️ Can't reach backend. Make sure router.py is running.");
+    }
+
+    sendBtn.disabled = false;
+    inputEl.focus();
+  }
+
+  // expose for chips
+  function send(text) {
+    inputEl.value = text;
+    sendMessage();
+  }
+</script>
+</body>
+</html>

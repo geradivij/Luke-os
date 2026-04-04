@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8"/>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+
+    body {
+      background: transparent;
+      width: 80px;
+      height: 80px;
+      overflow: hidden;
+      cursor: pointer;
+    }
+
+    #orb {
+      width: 72px;
+      height: 72px;
+      margin: 4px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #3b82f6, #1e1b4b);
+      box-shadow:
+        0 0 0 2px rgba(59,130,246,0.3),
+        0 4px 24px rgba(59,130,246,0.5),
+        0 0 40px rgba(99,102,241,0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      position: relative;
+    }
+
+    #orb:hover {
+      transform: scale(1.08);
+      box-shadow:
+        0 0 0 2px rgba(59,130,246,0.5),
+        0 4px 32px rgba(59,130,246,0.8),
+        0 0 60px rgba(99,102,241,0.5);
+    }
+
+    #orb:active {
+      transform: scale(0.95);
+    }
+
+    /* pulse ring */
+    #orb::after {
+      content: "";
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      border: 2px solid rgba(99,102,241,0.4);
+      animation: pulse 2.5s ease-out infinite;
+    }
+
+    @keyframes pulse {
+      0%   { transform: scale(1);   opacity: 0.8; }
+      100% { transform: scale(1.5); opacity: 0; }
+    }
+
+    /* status dot */
+    #dot {
+      position: absolute;
+      bottom: 6px;
+      right: 6px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #374151;
+      border: 2px solid #1e1b4b;
+      transition: background 0.3s;
+    }
+    #dot.alive { background: #22c55e; }
+    #dot.dead  { background: #ef4444; }
+  </style>
+</head>
+<body>
+
+<div id="orb">
+  🧠
+  <div id="dot"></div>
+</div>
+
+<script>
+  const orb = document.getElementById("orb");
+  const dot = document.getElementById("dot");
+
+  // ── Click to toggle chat ────────────────────────────────────────────────
+  orb.addEventListener("click", () => {
+    window.luke.toggleChat();
+  });
+
+  // ── Drag to move widget ─────────────────────────────────────────────────
+  let dragging = false;
+  let startX, startY, startScreenX, startScreenY;
+
+  orb.addEventListener("mousedown", (e) => {
+    // only drag on middle-click or right-click; left click = toggle
+    if (e.button !== 0) return;
+    dragging = false;
+    startX = e.screenX;
+    startY = e.screenY;
+    startScreenX = window.screenX;
+    startScreenY = window.screenY;
+
+    const onMove = (ev) => {
+      const dx = ev.screenX - startX;
+      const dy = ev.screenY - startY;
+      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
+        dragging = true;
+        window.luke.moveWidget(startScreenX + dx, startScreenY + dy);
+      }
+    };
+
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      // if we dragged, swallow the click
+      if (dragging) {
+        orb.addEventListener("click", (e) => e.stopImmediatePropagation(), { once: true, capture: true });
+      }
+    };
+
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  });
+
+  // ── Poll backend status for dot color ──────────────────────────────────
+  async function pollStatus() {
+    try {
+      const r = await fetch("http://localhost:5000/status");
+      if (r.ok) dot.className = "alive";
+      else       dot.className = "dead";
+    } catch {
+      dot.className = "dead";
+    }
+  }
+  pollStatus();
+  setInterval(pollStatus, 10000);
+</script>
+</body>
+</html>
