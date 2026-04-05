@@ -229,44 +229,45 @@ CATEGORIES (pick exactly one for screen_category):
   UNPRODUCTIVE: youtube_video | social_media | gaming | distraction
   SYSTEM:       idle | other
 
-CATEGORY RULES (read carefully):
-- coding        → IDE, terminal, code editor, GitHub, any programming
-- writing       → Docs, Notion, Word, notes, writing anything
-- learning      → YouTube tutorials/courses/how-to, Coursera, documentation, Stack Overflow, educational content
-- youtube_video → YouTube but NOT tutorials — home page, entertainment, music, vlogs
-- research      → Google Scholar, arXiv, reading technical articles or papers
-- email         → Gmail, Outlook, Apple Mail — reading or writing emails
-- meeting       → Zoom, Meet, Teams, any video call
-- ai_tools      → Claude, ChatGPT, Copilot, Perplexity, Gemini, any AI assistant
-- design        → Figma, Sketch, Canva, Photoshop, Illustrator
-- productivity_tools → Calendar, Todoist, task managers, Notion planning
-- job_search    → LinkedIn (job searching OR scrolling), Jobbright, Workday, company career pages, job applications
-- communication → Slack, Discord, iMessage — text-based work communication
-- social_media  → Instagram, Twitter/X, Facebook, TikTok, LinkedIn feed scrolling
-- gaming        → Steam, any game, game-related content
-- distraction   → Reddit casual, news scrolling, shopping, anything clearly unproductive
-- browsing      → general web browsing not fitting any other category
-- idle          → lock screen, desktop, screensaver, no activity
+CATEGORY RULES:
+- coding             → IDE, terminal, code editor, GitHub, Replit, any programming environment
+- writing            → Docs, Notion, Word, notes, essays, any text composition
+- learning           → YouTube tutorials/courses/how-to, Coursera, Khan Academy, documentation, Stack Overflow, lecture slides, textbook PDFs, educational content
+- youtube_video      → YouTube but NOT tutorials — home feed, entertainment, music videos, vlogs, shorts
+- research           → Google Scholar, arXiv, Wikipedia (in-depth), reading technical articles or papers
+- email              → Gmail, Outlook, Apple Mail — reading or composing emails
+- meeting            → Zoom, Meet, Teams, any video/audio call
+- ai_tools           → Claude, ChatGPT, Copilot, Perplexity, Gemini, Poe, any AI assistant or chatbot
+- design             → Figma, Sketch, Canva, Photoshop, Illustrator, any design tool
+- productivity_tools → Google Calendar, Todoist, Notion planning, task managers, to-do apps
+- job_search         → LinkedIn job listings, Jobbright, Workday, company career pages, any job application
+- communication      → Slack, Discord (study/work server), iMessage, WhatsApp — text-based messaging
+- social_media       → Instagram, Twitter/X, Facebook, TikTok, Snapchat, Reddit (casual), LinkedIn feed scrolling
+- gaming             → Steam, any game, game launcher, game-related content
+- distraction        → Shopping, news scrolling, memes, anything clearly off-task
+- browsing           → General web browsing that doesn't fit any other category
+- idle               → Lock screen, desktop only, screensaver, no activity visible
 
-KEY DISTINCTIONS:
-- YouTube: check the page title. If title contains "tutorial", "course", "how to", "learn", "explained", "guide", "lecture" → learning. Otherwise → youtube_video
-- LinkedIn: ALWAYS → job_search (whether applying or browsing feed)
-- Reddit: technical subreddits (r/programming, r/MachineLearning, etc.) → research. Casual browsing → distraction
-- Browser apps: categorize by URL/content, NOT the browser name
+KEY DISTINCTIONS (apply these strictly):
+- YouTube: read the video/page title carefully. Contains "tutorial", "course", "how to", "learn", "explained", "guide", "lecture", "lesson", "crash course" → learning. Everything else → youtube_video
+- LinkedIn: if viewing a job posting or applying → job_search. If scrolling feed/posts → social_media
+- Reddit: r/programming, r/MachineLearning, r/learnpython etc. → research. r/memes, r/gaming etc. → distraction
+- Browser: categorize by the URL and page content, NOT the browser name (Chrome/Safari/Firefox are not categories)
+- Notion: if writing/notes → writing. If planning/tasks → productivity_tools
 
 {
-  "app": "app currently in focus",
-  "screen_title": "concise label e.g. 'YouTube · Tutorial: React Hooks' or 'LinkedIn · Job Search' or 'VS Code · superluke.py'",
+  "app": "name of the app or browser currently in focus",
+  "screen_title": "short descriptive label — be specific, e.g. 'YouTube · How to Build a Neural Network', 'VS Code · homework.py', 'Gmail · Reading from Prof Johnson', 'Khan Academy · Calculus: Chain Rule'",
   "screen_category": "one category from the list above",
-  "productive": true or false (coding/writing/learning/research/email/meeting/ai_tools/design/productivity_tools = true, everything else = false),
-  "summary": "1-2 sentences: exactly what is the user doing right now",
-  "url": "full URL if browser is visible, else null",
-  "file": "filename if code editor or doc editor visible, else null",
+  "productive": true or false,
+  "summary": "1-2 sentences describing exactly what the student is doing right now — be specific about the content, not just the app",
+  "url": "full URL if visible in browser address bar, else null",
+  "file": "filename if visible in editor or document title, else null",
   "activity": "coding|writing|browsing|email|video|meeting|reading|design|idle|job_search|other",
 
   "entities": {
     "deadlines": [
-      { "title": "task or deadline name", "due_date": "YYYY-MM-DD or null", "notes": "any extra context" }
+      { "title": "assignment or deadline name", "due_date": "YYYY-MM-DD or null", "notes": "course name or any extra context" }
     ],
     "job_applications": [
       { "company": "Company Name", "role": "Job Title", "status": "saved|applied|interviewing|offered|rejected" }
@@ -275,20 +276,23 @@ KEY DISTINCTIONS:
       { "url": "full url", "title": "page title", "topic": "what this page is about in 3-5 words" }
     ],
     "research_topics": [
-      { "topic": "topic name", "summary": "one line of what was being researched" }
+      { "topic": "topic name", "summary": "one line of what is being studied or researched" }
     ],
     "people": [
-      { "name": "Full Name", "context": "who they are or why relevant" }
+      { "name": "Full Name", "context": "who they are — professor, classmate, recruiter, etc." }
     ],
-    "projects": ["project name if clearly visible"],
+    "projects": ["project or assignment name if clearly visible"],
     "tasks": [
-      { "title": "exact task or action item addressed TO the user", "due_date": "YYYY-MM-DD or null", "priority": "high|normal|low", "context": "where this was seen e.g. email, doc, slack" }
+      { "title": "specific task or action item directed at the student", "due_date": "YYYY-MM-DD or null", "priority": "high|normal|low", "context": "where this was seen — email, assignment page, calendar, etc." }
     ]
   }
 }
 
-Rules for tasks: ONLY include tasks clearly directed at or owned by the user (not someone else's to-do list).
-JSON only. No markdown fences."""
+RULES:
+- Tasks: ONLY extract tasks clearly assigned to or owned by the student. Not generic site content or other people's todos.
+- Be specific in screen_title — a vague title is useless. Include the actual content name.
+- productive = true only for: coding, writing, learning, research, email, meeting, ai_tools, design, productivity_tools
+- JSON only. No markdown fences. No explanation."""
 
     def read(self, img: Image.Image, timestamp: datetime) -> dict:
         raw = groq_vision(img, self.PROMPT)
@@ -319,19 +323,22 @@ JSON only. No markdown fences."""
 
 class SummaryAgent:
 
-    SUMMARY_PROMPT = """You are summarizing a user's screen activity during a {duration}-minute window ({window_start} to {window_end}).
+    SUMMARY_PROMPT = """You are summarizing a student's screen activity during a {duration}-minute window ({window_start} to {window_end}).
 
-Here are the raw screen snapshots captured during that window:
+Here are the raw screen snapshots from this window:
 {snapshots}
+
+Write a clear, honest summary of what the student actually did. Don't sugarcoat distraction or exaggerate productivity.
 
 Return ONLY valid JSON:
 {{
-  "narrative": "2-4 sentence human-readable summary of what the user did this window",
-  "primary_activity": "the dominant activity type",
-  "apps_used": ["list", "of", "apps"],
-  "urls_visited": ["list of urls seen, deduplicated"],
-  "files_open": ["list of filenames seen, deduplicated"],
-  "key_topics": ["3-5 keyword topics that describe this window"]
+  "narrative": "2-3 sentences describing what the student did this window. Be specific — name actual apps, topics, assignments, and websites. If they were distracted, say so plainly without judgment.",
+  "primary_activity": "the single most dominant activity category from this window",
+  "apps_used": ["deduplicated list of apps or sites used"],
+  "urls_visited": ["deduplicated list of URLs visited"],
+  "files_open": ["deduplicated list of filenames or documents open"],
+  "key_topics": ["2-4 specific topics — e.g. 'calculus derivatives', 'Python loops', 'job applications', 'YouTube videos'. Be specific not generic."],
+  "study_subjects": ["academic subjects being studied if any — e.g. 'Mathematics', 'Computer Science', 'Biology'. Empty array if none."]
 }}
 
 JSON only. No markdown fences."""
@@ -799,18 +806,35 @@ class MemoryAgent:
     def chat(self, user_message: str) -> str:
         context = self._build_context(user_message)
 
-        system = f"""You are Luke, a personal AI second brain.
-You watch the user's screen every {CAPTURE_INTERVAL} seconds and summarize activity in {SUMMARY_INTERVAL}-minute windows.
+        system = f"""You are Luke — a chill, smart study companion for students. You watch their screen and remember everything so they don't have to.
 
 Current time: {datetime.now().strftime("%Y-%m-%d %H:%M")}
 
 Here is everything you remember:
 {context}
 
-Answer naturally and specifically. Include exact times, window ranges, company names, and URLs when available.
-If something isn't in memory, say so honestly — don't guess.
-For deadlines, flag anything coming up soon.
-Keep answers helpful and concise."""
+━━━ WHO YOU ARE ━━━
+You're like that one friend who's somehow always on top of everything — pays attention, remembers stuff, gives real advice without being preachy. You know the student well because you've been watching what they actually do, not what they say they do. Use that.
+
+━━━ HOW TO TALK ━━━
+- Casual and direct. Contractions always. Skip the formal intro.
+- Lead with the answer — never bury the useful thing at the end
+- 1-3 sentences is almost always enough. Only go longer if they clearly want detail.
+- Specific beats vague every time. Real names, real times, real files.
+- Never start a reply with "I" — lead with the info or observation
+- No bullet dumps unless they specifically ask for a list
+- If you don't know something, just say "not sure, I didn't catch that"
+
+━━━ TONE BY SITUATION ━━━
+- Memory question ("what was I doing at 3pm?") → direct answer, feel like you were there
+- Distraction caught → light, not a lecture. "you were on YouTube for like 20 min btw — [task] still open?" 
+- Task/deadline question → just tell them, flag urgent ones clearly
+- They finished something → brief genuine reaction, then what's next if relevant
+- They seem stressed → calm it down, one thing at a time, no overwhelm
+- Research/study question → be the smart friend who knows what they've been reading
+
+━━━ STUDENT CONTEXT ━━━
+You're helping a student. They have assignments, deadlines, research topics, and classes. When you see patterns in what they've been doing, connect the dots for them. If they were studying calculus for 2 hours, you know that."""
 
         self.chat_history.append({"role": "user", "content": user_message})
         messages = [{"role": "system", "content": system}] + self.chat_history[-10:]

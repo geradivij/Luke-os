@@ -223,18 +223,41 @@ class AvatarOrb(QWidget):
         painter.setBrush(shell)
         painter.drawEllipse(shell_rect)
 
-        glass_rect = shell_rect.adjusted(8, 8, -8, -8)
+        ear_left = QRectF(shell_rect.left() + 12, shell_rect.top() - 4, 20, 34)
+        ear_right = QRectF(shell_rect.right() - 32, shell_rect.top() - 4, 20, 34)
+        for ear_rect, tilt in ((ear_left, -8), (ear_right, 8)):
+            ear_grad = QLinearGradient(ear_rect.topLeft(), ear_rect.bottomRight())
+            ear_grad.setColorAt(0.0, QColor(210, 236, 255, 240))
+            ear_grad.setColorAt(0.55, QColor(130, 180, 255, 230))
+            ear_grad.setColorAt(1.0, QColor(68, 96, 194, 228))
+            painter.setBrush(ear_grad)
+            painter.setPen(QPen(QColor(255, 255, 255, 36), 1.0))
+            painter.save()
+            painter.translate(ear_rect.center())
+            painter.rotate(tilt)
+            painter.drawRoundedRect(QRectF(-ear_rect.width() / 2, -ear_rect.height() / 2, ear_rect.width(), ear_rect.height()), 10, 10)
+            painter.setBrush(QColor(255, 216, 236, 170))
+            painter.drawRoundedRect(QRectF(-5, -ear_rect.height() / 2 + 5, 10, ear_rect.height() - 10), 5, 5)
+            painter.restore()
+
+        glass_rect = shell_rect.adjusted(8, 12, -8, -8)
         glass = QRadialGradient(glass_rect.center() + QPoint(-3, -12), glass_rect.width() * 0.8)
         glass.setColorAt(0.0, QColor(255, 255, 255, 240))
         glass.setColorAt(0.34, QColor(201, 234, 255, 238))
         glass.setColorAt(0.72, QColor(122, 168, 255, 232))
         glass.setColorAt(1.0, QColor(71, 95, 194, 232))
+        painter.setPen(Qt.NoPen)
         painter.setBrush(glass)
         painter.drawEllipse(glass_rect)
 
         glow_y = int(self._pulse * 3.5)
         painter.setBrush(QColor(255, 255, 255, 48))
         painter.drawEllipse(glass_rect.adjusted(12, 12 + glow_y, -12, -28 + glow_y))
+
+        cheek_color = QColor(255, 206, 225, 115)
+        painter.setBrush(cheek_color)
+        painter.drawEllipse(QRectF(glass_rect.left() + 12, glass_rect.center().y() + 4, 14, 9))
+        painter.drawEllipse(QRectF(glass_rect.right() - 26, glass_rect.center().y() + 4, 14, 9))
 
         eye_y = glass_rect.center().y() - 1
         blink_height = max(3, int(11 * self._blink))
@@ -245,8 +268,19 @@ class AvatarOrb(QWidget):
         painter.drawRoundedRect(left_eye, radius, radius)
         painter.drawRoundedRect(right_eye, radius, radius)
 
-        painter.setPen(QPen(QColor(10, 24, 66, 200), 1.5))
-        painter.drawArc(glass_rect.center().x() - 9, glass_rect.center().y() + 9, 18, 10, 210 * 16, 120 * 16)
+        painter.setBrush(QColor(255, 174, 196, 210))
+        painter.setPen(Qt.NoPen)
+        nose = QPainterPath()
+        nose.moveTo(glass_rect.center().x(), glass_rect.center().y() + 10)
+        nose.lineTo(glass_rect.center().x() - 5, glass_rect.center().y() + 16)
+        nose.lineTo(glass_rect.center().x() + 5, glass_rect.center().y() + 16)
+        nose.closeSubpath()
+        painter.drawPath(nose)
+
+        painter.setPen(QPen(QColor(10, 24, 66, 180), 1.4))
+        painter.drawLine(glass_rect.center().x(), glass_rect.center().y() + 16, glass_rect.center().x(), glass_rect.center().y() + 21)
+        painter.drawArc(glass_rect.center().x() - 12, glass_rect.center().y() + 15, 12, 10, 235 * 16, 130 * 16)
+        painter.drawArc(glass_rect.center().x(), glass_rect.center().y() + 15, 12, 10, 175 * 16, 130 * 16)
 
         status_rect = QRect(self.width() - 28, self.height() - 28, 12, 12)
         painter.setBrush(zone_color)
@@ -327,14 +361,14 @@ class SignalTile(QFrame):
     def _build(self):
         self.setObjectName("signalTile")
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setContentsMargins(16, 14, 16, 14)
         layout.setSpacing(4)
 
         self.label = QLabel(self._label_text)
-        self.label.setStyleSheet(f"color: {P['dim']}; font-size: 10px; font-weight: 700; letter-spacing: 0.14em;")
+        self.label.setStyleSheet(f"color: {P['dim']}; font-size: 14px; font-weight: 700; letter-spacing: 0.14em;")
 
         self.value = QLabel("-")
-        self.value.setStyleSheet(f"color: {P['text']}; font-size: 18px; font-weight: 700;")
+        self.value.setStyleSheet(f"color: {P['text']}; font-size: 25px; font-weight: 700;")
 
         layout.addWidget(self.label)
         layout.addWidget(self.value)
@@ -353,7 +387,7 @@ class SignalTile(QFrame):
             }}
             """
         )
-        self.value.setStyleSheet(f"color: {value}; font-size: 18px; font-weight: 700;")
+        self.value.setStyleSheet(f"color: {value}; font-size: 25px; font-weight: 700;")
 
     def set_value(self, text, alert=False):
         self.value.setText(clean_text(text) or "-")
@@ -378,7 +412,7 @@ class MemoryTab(QWidget):
     def _build_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(12)
+        layout.setSpacing(16)
 
         self.status_label = QLabel("Starting memory agents")
         self.status_label.setStyleSheet(
@@ -386,9 +420,9 @@ class MemoryTab(QWidget):
             background: rgba(125, 211, 252, 0.10);
             color: {P['blue']};
             border: 1px solid rgba(125, 211, 252, 0.22);
-            border-radius: 14px;
-            padding: 8px 12px;
-            font-size: 12px;
+            border-radius: 16px;
+            padding: 12px 16px;
+            font-size: 16px;
             font-weight: 600;
             """
         )
@@ -403,9 +437,9 @@ class MemoryTab(QWidget):
                 background: rgba(255,255,255,0.03);
                 color: {P['text']};
                 border: 1px solid {P['border']};
-                border-radius: 22px;
-                padding: 18px;
-                font-size: 14px;
+                border-radius: 28px;
+                padding: 24px;
+                font-size: 19px;
                 line-height: 1.65;
             }}
             QScrollBar:vertical {{
@@ -433,9 +467,9 @@ class MemoryTab(QWidget):
                     background: {P['soft']};
                     color: {P['muted']};
                     border: 1px solid {P['border']};
-                    border-radius: 15px;
-                    padding: 8px 12px;
-                    font-size: 12px;
+                    border-radius: 18px;
+                    padding: 11px 15px;
+                    font-size: 16px;
                     text-align: left;
                 }}
                 QPushButton:hover {{
@@ -452,16 +486,16 @@ class MemoryTab(QWidget):
 
         self.input_field = QLineEdit()
         self.input_field.setPlaceholderText("Ask Luke about your screen history")
-        self.input_field.setFixedHeight(46)
+        self.input_field.setFixedHeight(58)
         self.input_field.setStyleSheet(
             f"""
             QLineEdit {{
                 background: rgba(255,255,255,0.05);
                 color: {P['text']};
                 border: 1px solid {P['border']};
-                border-radius: 16px;
-                padding: 0 16px;
-                font-size: 14px;
+                border-radius: 20px;
+                padding: 0 20px;
+                font-size: 19px;
             }}
             QLineEdit:focus {{
                 border-color: rgba(125,211,252,0.45);
@@ -472,7 +506,7 @@ class MemoryTab(QWidget):
 
         self.send_btn = QPushButton("Send")
         self.send_btn.setCursor(Qt.PointingHandCursor)
-        self.send_btn.setFixedSize(86, 46)
+        self.send_btn.setFixedSize(112, 58)
         self.send_btn.clicked.connect(self._send)
         self.send_btn.setStyleSheet(
             f"""
@@ -480,8 +514,8 @@ class MemoryTab(QWidget):
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {P['blue']}, stop:1 {P['violet']});
                 color: {P['ink']};
                 border: none;
-                border-radius: 16px;
-                font-size: 13px;
+                border-radius: 20px;
+                font-size: 17px;
                 font-weight: 700;
             }}
             QPushButton:hover {{
@@ -508,9 +542,9 @@ class MemoryTab(QWidget):
         return (
             f"<div style='text-align:{align}; margin: 8px 0;'>"
             f"<div style='display:inline-block; max-width: 88%; background:{bg}; border:1px solid {border};"
-            f" border-radius:18px; padding:12px 14px;'>"
-            f"<div style='font-size:11px; font-weight:700; color:{name}; letter-spacing:0.08em; text-transform:uppercase; margin-bottom:6px;'>{speaker}</div>"
-            f"<div style='font-size:14px; color:{P['text']};'>{text}</div>"
+            f" border-radius:22px; padding:16px 18px;'>"
+            f"<div style='font-size:15px; font-weight:700; color:{name}; letter-spacing:0.08em; text-transform:uppercase; margin-bottom:8px;'>{speaker}</div>"
+            f"<div style='font-size:19px; color:{P['text']};'>{text}</div>"
             f"</div></div>"
         )
 
@@ -634,7 +668,7 @@ class CLRDashboard(QMainWindow):
         self._stress_banner_timer.timeout.connect(self._hide_stress_banner)
 
         self._collapsed_rect = QRect(28, 28, 128, 128)
-        self._expanded_rect = QRect(28, 28, 930, 690)
+        self._expanded_rect = QRect(28, 28, 1180, 900)
 
         self.setWindowTitle("Luke")
         self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint | Qt.Tool)
@@ -657,7 +691,7 @@ class CLRDashboard(QMainWindow):
         self.setCentralWidget(root)
 
         self.avatar_host = QWidget()
-        self.avatar_host.setFixedWidth(104)
+        self.avatar_host.setFixedWidth(126)
         avatar_layout = QVBoxLayout(self.avatar_host)
         avatar_layout.setContentsMargins(0, 0, 0, 0)
         avatar_layout.setSpacing(10)
@@ -668,11 +702,11 @@ class CLRDashboard(QMainWindow):
 
         self.avatar_label = QLabel("Luke")
         self.avatar_label.setAlignment(Qt.AlignCenter)
-        self.avatar_label.setStyleSheet(f"color: {P['text']}; font-size: 13px; font-weight: 700; letter-spacing: 0.10em; text-transform: uppercase;")
+        self.avatar_label.setStyleSheet(f"color: {P['text']}; font-size: 18px; font-weight: 700; letter-spacing: 0.10em; text-transform: uppercase;")
 
         self.avatar_caption = QLabel("click to open")
         self.avatar_caption.setAlignment(Qt.AlignCenter)
-        self.avatar_caption.setStyleSheet(f"color: {P['dim']}; font-size: 11px;")
+        self.avatar_caption.setStyleSheet(f"color: {P['dim']}; font-size: 15px;")
 
         avatar_layout.addWidget(self.avatar, 0, Qt.AlignCenter)
         avatar_layout.addWidget(self.avatar_label)
@@ -690,8 +724,8 @@ class CLRDashboard(QMainWindow):
         self.panel_wrap.setGraphicsEffect(shadow)
 
         panel_layout = QVBoxLayout(self.panel_wrap)
-        panel_layout.setContentsMargins(22, 18, 22, 22)
-        panel_layout.setSpacing(18)
+        panel_layout.setContentsMargins(32, 28, 32, 32)
+        panel_layout.setSpacing(24)
 
         self.header = DragSurface()
         header_layout = QHBoxLayout(self.header)
@@ -702,9 +736,9 @@ class CLRDashboard(QMainWindow):
         title_stack.setContentsMargins(0, 0, 0, 0)
         title_stack.setSpacing(3)
         self.title_label = QLabel("Luke")
-        self.title_label.setStyleSheet(f"color: {P['text']}; font-size: 24px; font-weight: 700;")
+        self.title_label.setStyleSheet(f"color: {P['text']}; font-size: 35px; font-weight: 700;")
         self.subtitle_label = QLabel("attention guard and memory desk")
-        self.subtitle_label.setStyleSheet(f"color: {P['muted']}; font-size: 13px;")
+        self.subtitle_label.setStyleSheet(f"color: {P['muted']}; font-size: 19px;")
         title_stack.addWidget(self.title_label)
         title_stack.addWidget(self.subtitle_label)
 
@@ -768,13 +802,13 @@ class CLRDashboard(QMainWindow):
                 background: transparent;
             }}
             QTabBar::tab {{
-                min-width: 122px;
-                padding: 12px 18px;
+                min-width: 170px;
+                padding: 16px 24px;
                 margin-right: 8px;
                 border-radius: 16px;
                 background: {P['soft']};
                 color: {P['muted']};
-                font-size: 12px;
+                font-size: 16px;
                 font-weight: 700;
             }}
             QTabBar::tab:selected {{
@@ -797,12 +831,12 @@ class CLRDashboard(QMainWindow):
     def _build_focus_tab(self):
         focus_tab = QWidget()
         layout = QVBoxLayout(focus_tab)
-        layout.setContentsMargins(0, 12, 0, 0)
-        layout.setSpacing(16)
+        layout.setContentsMargins(0, 18, 0, 0)
+        layout.setSpacing(22)
 
         self.zone_card = FrostFrame(radius=24)
         zone_layout = QHBoxLayout(self.zone_card)
-        zone_layout.setContentsMargins(18, 16, 18, 16)
+        zone_layout.setContentsMargins(24, 22, 24, 22)
         zone_layout.setSpacing(14)
 
         self.zone_indicator = QLabel()
@@ -814,11 +848,11 @@ class CLRDashboard(QMainWindow):
         zone_text_layout.setSpacing(4)
 
         self.zone_label = QLabel("Stable")
-        self.zone_label.setStyleSheet(f"color: {P['text']}; font-size: 20px; font-weight: 700;")
+        self.zone_label.setStyleSheet(f"color: {P['text']}; font-size: 29px; font-weight: 700;")
 
         self.coach_label = QLabel(ZONE_CFG["NORMAL"]["subtitle"])
         self.coach_label.setWordWrap(True)
-        self.coach_label.setStyleSheet(f"color: {P['muted']}; font-size: 13px; line-height: 1.5;")
+        self.coach_label.setStyleSheet(f"color: {P['muted']}; font-size: 19px; line-height: 1.5;")
 
         zone_text_layout.addWidget(self.zone_label)
         zone_text_layout.addWidget(self.coach_label)
@@ -828,8 +862,8 @@ class CLRDashboard(QMainWindow):
 
         self.hero_card = FrostFrame(radius=28)
         hero_layout = QHBoxLayout(self.hero_card)
-        hero_layout.setContentsMargins(20, 18, 20, 18)
-        hero_layout.setSpacing(22)
+        hero_layout.setContentsMargins(30, 28, 30, 28)
+        hero_layout.setSpacing(30)
 
         self.arc = ScoreRing()
         hero_layout.addWidget(self.arc, 0, Qt.AlignVCenter)
@@ -840,22 +874,22 @@ class CLRDashboard(QMainWindow):
         block = QVBoxLayout()
         block.setSpacing(4)
         self.hero_title = QLabel("Stay clean")
-        self.hero_title.setStyleSheet(f"color: {P['text']}; font-size: 24px; font-weight: 700;")
+        self.hero_title.setStyleSheet(f"color: {P['text']}; font-size: 35px; font-weight: 700;")
         self.hero_copy = QLabel("Luke tracks cognitive pressure in real time and steps in when your attention starts leaking.")
         self.hero_copy.setWordWrap(True)
-        self.hero_copy.setStyleSheet(f"color: {P['muted']}; font-size: 13px; line-height: 1.55;")
+        self.hero_copy.setStyleSheet(f"color: {P['muted']}; font-size: 19px; line-height: 1.55;")
         block.addWidget(self.hero_title)
         block.addWidget(self.hero_copy)
 
         self.focus_btn = QPushButton("Start focus session")
         self.focus_btn.setCursor(Qt.PointingHandCursor)
-        self.focus_btn.setFixedHeight(50)
+        self.focus_btn.setFixedHeight(62)
         self.focus_btn.clicked.connect(self.toggle_focus)
         self.focus_btn.setStyleSheet(self._focus_button_style(active=False))
 
         self.log_label = QLabel("No interventions yet.")
         self.log_label.setWordWrap(True)
-        self.log_label.setStyleSheet(f"color: {P['dim']}; font-size: 12px;")
+        self.log_label.setStyleSheet(f"color: {P['dim']}; font-size: 16px;")
 
         side.addLayout(block)
         side.addWidget(self.focus_btn)
@@ -866,8 +900,8 @@ class CLRDashboard(QMainWindow):
 
         grid = QGridLayout()
         grid.setContentsMargins(0, 0, 0, 0)
-        grid.setHorizontalSpacing(12)
-        grid.setVerticalSpacing(12)
+        grid.setHorizontalSpacing(16)
+        grid.setVerticalSpacing(16)
 
         self._tiles = {
             "switches": SignalTile("Switches"),
@@ -886,7 +920,7 @@ class CLRDashboard(QMainWindow):
         grid.addWidget(self._tiles["head"], 1, 2)
 
         self.app_card = SignalTile("Active App")
-        self.app_card.value.setStyleSheet(f"color: {P['text']}; font-size: 15px; font-weight: 700;")
+        self.app_card.value.setStyleSheet(f"color: {P['text']}; font-size: 21px; font-weight: 700;")
         grid.addWidget(self.app_card, 2, 0, 1, 3)
         layout.addLayout(grid)
 
@@ -898,9 +932,9 @@ class CLRDashboard(QMainWindow):
             background: rgba(251,113,133,0.10);
             color: {P['red']};
             border: 1px solid rgba(251,113,133,0.25);
-            border-radius: 18px;
-            padding: 12px 14px;
-            font-size: 13px;
+            border-radius: 22px;
+            padding: 16px 18px;
+            font-size: 18px;
             font-weight: 600;
             """
         )
@@ -969,7 +1003,7 @@ class CLRDashboard(QMainWindow):
                     color: {P['ink']};
                     border: none;
                     border-radius: 18px;
-                    font-size: 14px;
+                    font-size: 19px;
                     font-weight: 700;
                 }}
                 QPushButton:hover {{
@@ -979,14 +1013,14 @@ class CLRDashboard(QMainWindow):
             )
         return (
             f"""
-            QPushButton {{
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {P['blue']}, stop:1 {P['violet']});
-                color: {P['ink']};
-                border: none;
-                border-radius: 18px;
-                font-size: 14px;
-                font-weight: 700;
-            }}
+                QPushButton {{
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {P['blue']}, stop:1 {P['violet']});
+                    color: {P['ink']};
+                    border: none;
+                    border-radius: 18px;
+                    font-size: 19px;
+                    font-weight: 700;
+                }}
             QPushButton:hover {{
                 background: {P['blue']};
             }}
