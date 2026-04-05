@@ -43,6 +43,11 @@ Built specifically for **students**, **people with ADHD and dyslexia**, and **me
 
 ---
 
+## Devpost
+
+> https://devpost.com/software/luke-os
+
+---
 ## Features
 
 ### Phase 1 — Live Now
