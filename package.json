@@ -6,6 +6,9 @@
   "scripts": {
     "start": "electron ."
   },
+  "dependencies": {
+    "three": "^0.170.0"
+  },
   "devDependencies": {
     "electron": "^41.1.1"
   }

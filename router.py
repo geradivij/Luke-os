@@ -1,34 +1,32 @@
 """
-router.py
-=========
-Flask wrapper around superluke.py.
-Exposes /chat, /task, /tasks, /task/done, /status, /
+router.py  —  Luna backend
+==========================
+Runs CLR agent + SuperMemory agents and serves the Electron UI.
 
-Run:
-    pip install flask flask-cors
-    python router.py
+    python router.py          → http://localhost:5000
+
+python main.py (PyQt5 dashboard) is completely separate and unchanged.
 """
 
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
-import threading
-import sys
-import os
+import threading, time, sys, os
+from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(__file__))
-from superluke import (
-    _start_writer,
-    MemoryAgent,
-    SummaryAgent,
-    TaskAgent,
-    CategoryTracker,
-    screenshot_loop,
-)
 
 app = Flask(__name__)
 CORS(app)
 
-# ── Boot all agents ────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+# SuperMemory agents
+# ══════════════════════════════════════════════════════════════════════════════
+
+from superluke import (
+    _start_writer, MemoryAgent, SummaryAgent,
+    TaskAgent, CategoryTracker, screenshot_loop,
+)
+
 _start_writer()
 memory           = MemoryAgent()
 summary          = SummaryAgent(memory)
@@ -42,24 +40,99 @@ try:
 except Exception:
     productivity_tracker = None
 
-t_screen  = threading.Thread(
-    target=screenshot_loop,
+threading.Thread(target=screenshot_loop,
     args=(memory, task_agent, productivity_tracker, category_tracker),
-    daemon=True
-)
-t_summary = threading.Thread(target=summary.run_loop, daemon=True)
-t_screen.start()
-t_summary.start()
+    daemon=True, name="mem-screen").start()
+threading.Thread(target=summary.run_loop, daemon=True, name="mem-summary").start()
+print("  🧠  SuperMemory agents started")
 
-print("  🧠 Superluke router running on http://localhost:5000")
-print("  👁  Screenshot + summary + task + productivity + category agents started")
+# ══════════════════════════════════════════════════════════════════════════════
+# CLR agent  (vision + signals + voice)
+# Runs as background threads — no PyQt5 needed here.
+# If any dependency is missing the block is skipped gracefully.
+# ══════════════════════════════════════════════════════════════════════════════
 
-# ── Routes ─────────────────────────────────────────────────────────────────
+_clr_lock  = threading.Lock()
+_clr_state = {
+    "available":      False,
+    "score":          0,
+    "zone":           "NORMAL",
+    "signals":        {},
+    "log":            None,
+    "focus_mode":     False,
+    "stress_message": None,
+    "stress_ts":      None,
+    "last_updated":   None,
+}
+_clr_agent = None
 
-@app.route("/", methods=["GET"])
+
+def _clr_cb(data: dict):
+    with _clr_lock:
+        _clr_state["score"]        = data.get("score", 0)
+        _clr_state["zone"]         = data.get("zone", "NORMAL")
+        _clr_state["signals"]      = data.get("signals", {})
+        _clr_state["log"]          = data.get("log") or _clr_state["log"]
+        _clr_state["last_updated"] = datetime.now().isoformat()
+
+
+class _Proxy:
+    """Stand-in for CLRDashboard — stores stress messages for polling."""
+    def notify_stress(self, msg: str):
+        with _clr_lock:
+            _clr_state["stress_message"] = msg
+            _clr_state["stress_ts"]      = datetime.now().isoformat()
+    def update_from_agent(self, data: dict):
+        _clr_cb(data)
+
+
+try:
+    from vision_pipeline import VisionPipeline
+    from agent import CLRAgent
+
+    _vision    = VisionPipeline()
+    _proxy     = _Proxy()
+    _clr_agent = CLRAgent(ui_callback=_clr_cb, vision_pipeline=_vision, dashboard=_proxy)
+    _clr_state["available"] = True
+
+    threading.Thread(target=lambda: [
+        (_clr_agent.set_vision_state(_vision.get_state()), time.sleep(2))
+        for _ in iter(int, 1)
+    ], daemon=True, name="clr-vision").start()
+
+    threading.Thread(target=lambda: (
+        __import__('voice_input').VoiceListener(
+            on_stress_detected=_clr_agent.on_stress_detected
+        ).start()
+    ), daemon=True, name="clr-voice").start()
+
+    _clr_agent.start()
+
+    threading.Thread(target=lambda: (
+        time.sleep(2),
+        __import__('voice_output').speak_text(
+            "CLR is running. Click focus when you're ready."
+        )
+    ), daemon=True, name="clr-greet").start()
+
+    print("  🟢  CLR agent started (vision + voice + signals)")
+
+except Exception as e:
+    print(f"  ⚠️   CLR unavailable: {e}")
+
+print("  🚀  Luna router → http://localhost:5000")
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Routes — static
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route("/")
 def index():
     return send_from_directory(os.path.dirname(__file__), "index.html")
 
+# ══════════════════════════════════════════════════════════════════════════════
+# Routes — SuperMemory
+# ══════════════════════════════════════════════════════════════════════════════
 
 @app.route("/chat", methods=["POST"])
 def chat():
@@ -68,144 +141,128 @@ def chat():
     if not message:
         return jsonify({"error": "no message"}), 400
 
-    # ── /task command ──────────────────────────────────────────────────────
     if message.lower().startswith("/task "):
         raw = message[6:].strip()
-        if not raw:
-            return jsonify({"response": "Usage: /task <title> [by <date>] [!high]", "type": "error"})
-
         priority = "normal"
-        if raw.endswith("!high") or raw.startswith("!high "):
-            priority = "high"
-            raw = raw.replace("!high", "").strip()
-        elif raw.endswith("!low") or raw.startswith("!low "):
-            priority = "low"
-            raw = raw.replace("!low", "").strip()
-
+        if "!high" in raw: priority = "high";  raw = raw.replace("!high","").strip()
+        elif "!low" in raw: priority = "low";  raw = raw.replace("!low","").strip()
         result = task_agent.add(title=raw, priority=priority, source="user")
         if result.get("duplicate"):
             t = result["task"]
-            return jsonify({
-                "response": f"⚠️ Already tracked: **{t['title']}**" + (f" · due {t['due_date']}" if t.get("due_date") else ""),
-                "type": "task_duplicate",
-                "task": t,
-            })
+            return jsonify({"response": f"⚠️ Already tracked: **{t['title']}**", "type":"task_duplicate","task":t})
         t = result["task"]
-        due_str = f" · due **{t['due_date']}**" if t.get("due_date") else ""
-        ctx_str = f"\n_{t['person_context']}_" if t.get("person_context") else ""
-        return jsonify({
-            "response": f"✅ Task saved: **{t['title']}**{due_str}{ctx_str}",
-            "type": "task_added",
-            "task": t,
-        })
+        due = f" · due **{t['due_date']}**" if t.get("due_date") else ""
+        return jsonify({"response": f"✅ Task saved: **{t['title']}**{due}", "type":"task_added","task":t})
 
-    # ── /tasks list ────────────────────────────────────────────────────────
-    if message.lower().strip() in ("/tasks", "/task list", "list tasks", "my tasks", "what are my tasks", "show tasks"):
+    if message.lower().strip() in ("/tasks","list tasks","my tasks","show tasks"):
         tasks = task_agent.list_tasks()
         return jsonify({
             "response": "📋 **Your tasks:**\n" + task_agent.format_for_chat(tasks) if tasks else "📋 No pending tasks.",
-            "type": "task_list",
-            "tasks": tasks,
+            "type":"task_list","tasks":tasks,
         })
 
-    # ── /done command ──────────────────────────────────────────────────────
     if message.lower().startswith("/done "):
-        identifier = message[6:].strip()
-        completed  = task_agent.complete(identifier)
+        completed = task_agent.complete(message[6:].strip())
         if completed:
-            return jsonify({
-                "response": f"✅ Marked done: **{completed['title']}**",
-                "type": "task_done",
-                "task": completed,
-            })
-        return jsonify({"response": "❌ Task not found. Use /tasks to see your list.", "type": "error"})
+            return jsonify({"response": f"✅ Done: **{completed['title']}**", "type":"task_done","task":completed})
+        return jsonify({"response":"❌ Task not found.","type":"error"})
 
-    # ── normal memory chat ─────────────────────────────────────────────────
-    response = memory.chat(message)
-    return jsonify({"response": response, "type": "chat"})
+    return jsonify({"response": memory.chat(message), "type":"chat"})
 
 
-@app.route("/tasks", methods=["GET"])
+@app.route("/tasks")
 def list_tasks():
-    include_done = request.args.get("include_done", "false").lower() == "true"
+    include_done = request.args.get("include_done","false").lower() == "true"
     tasks = task_agent.list_tasks(include_done=include_done)
     return jsonify({"tasks": tasks, "count": len(tasks)})
 
 
 @app.route("/task", methods=["POST"])
 def add_task():
-    data = request.get_json(silent=True) or {}
-    result = task_agent.add(
-        title        = data.get("title", ""),
-        due_date     = data.get("due_date"),
-        priority     = data.get("priority", "normal"),
-        source       = data.get("source", "user"),
-        source_detail= data.get("source_detail", ""),
-    )
-    return jsonify(result)
+    d = request.get_json(silent=True) or {}
+    return jsonify(task_agent.add(
+        title=d.get("title",""), due_date=d.get("due_date"),
+        priority=d.get("priority","normal"), source=d.get("source","user"),
+        source_detail=d.get("source_detail",""),
+    ))
 
 
 @app.route("/task/done", methods=["POST"])
 def complete_task():
-    data       = request.get_json(silent=True) or {}
-    identifier = data.get("id") or data.get("title") or ""
-    completed  = task_agent.complete(identifier)
-    if completed:
-        return jsonify({"ok": True, "task": completed})
-    return jsonify({"ok": False, "error": "not found"}), 404
+    d   = request.get_json(silent=True) or {}
+    res = task_agent.complete(d.get("id") or d.get("title",""))
+    return jsonify({"ok":True,"task":res}) if res else (jsonify({"ok":False,"error":"not found"}),404)
 
 
 @app.route("/task/remove", methods=["POST"])
 def remove_task():
-    data       = request.get_json(silent=True) or {}
-    identifier = data.get("id") or data.get("title") or ""
-    removed    = task_agent.remove(identifier)
-    if removed:
-        return jsonify({"ok": True, "task": removed})
-    return jsonify({"ok": False, "error": "not found"}), 404
+    d   = request.get_json(silent=True) or {}
+    res = task_agent.remove(d.get("id") or d.get("title",""))
+    return jsonify({"ok":True,"task":res}) if res else (jsonify({"ok":False,"error":"not found"}),404)
 
 
-@app.route("/productivity", methods=["GET"])
+@app.route("/productivity")
 def productivity():
     if not productivity_tracker:
-        return jsonify({"error": "productivity tracker not available"}), 503
+        return jsonify({"error":"not available"}), 503
     return jsonify(productivity_tracker.get_snapshot())
 
 
-@app.route("/productivity/report", methods=["GET"])
+@app.route("/productivity/report")
 def productivity_report():
-    """Today's full breakdown — category time, hourly scores, recent events."""
     return jsonify(category_tracker.get_today_summary())
 
 
-@app.route("/productivity/categories", methods=["GET"])
+@app.route("/productivity/categories")
 def productivity_categories():
-    """Per-category totals over last N days (default 7)."""
-    days = int(request.args.get("days", 7))
-    return jsonify({"categories": category_tracker.get_category_report(days), "days": days})
+    days = int(request.args.get("days",7))
+    return jsonify({"categories": category_tracker.get_category_report(days), "days":days})
 
 
-@app.route("/status", methods=["GET"])
+@app.route("/status")
 def status():
     from superluke import _raw_buffer, _buffer_lock, load_json, SUMMARIES_FILE, ENTITIES_FILE
-    with _buffer_lock:
-        buf = len(_raw_buffer)
+    with _buffer_lock: buf = len(_raw_buffer)
     summaries = load_json(SUMMARIES_FILE, [])
     entities  = load_json(ENTITIES_FILE, {})
     tasks     = task_agent.list_tasks()
     prod      = productivity_tracker.get_snapshot() if productivity_tracker else {}
     return jsonify({
-        "ok":                True,
-        "buffer_snapshots":  buf,
-        "windows_summarized":len(summaries),
-        "jobs_tracked":      len(entities.get("job_applications", [])),
-        "people_tracked":    len(entities.get("people", [])),
-        "links_tracked":     len(entities.get("links", [])),
-        "tasks_pending":     len(tasks),
+        "ok": True,
+        "buffer_snapshots":   buf,
+        "windows_summarized": len(summaries),
+        "tasks_pending":      len(tasks),
         "productivity_score": prod.get("productivity_score"),
         "risk_level":         prod.get("risk_level"),
         "is_distracted":      prod.get("is_distracted", False),
     })
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Routes — CLR
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route("/clr/status")
+def clr_status():
+    with _clr_lock:
+        return jsonify(dict(_clr_state))
+
+
+@app.route("/clr/focus", methods=["POST"])
+def clr_focus():
+    if not _clr_agent:
+        return jsonify({"ok":False,"error":"CLR not running"}), 503
+    enabled = (request.get_json(silent=True) or {}).get("enabled", True)
+    _clr_agent.set_focus_mode(enabled)
+    with _clr_lock: _clr_state["focus_mode"] = enabled
+    return jsonify({"ok":True,"focus_mode":enabled})
+
+
+@app.route("/clr/stress/ack", methods=["POST"])
+def clr_stress_ack():
+    with _clr_lock:
+        _clr_state["stress_message"] = None
+        _clr_state["stress_ts"]      = None
+    return jsonify({"ok":True})
 
 
 if __name__ == "__main__":

@@ -1,699 +1,1121 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Luke</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: #0f0f0f; color: #e8e8e8;
-      height: 100vh; display: flex; flex-direction: column;
-      border-radius: 16px; overflow: hidden; border: 1px solid #2a2a2a;
-    }
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Luna</title>
 
-    /* ── Titlebar ── */
-    #titlebar {
-      -webkit-app-region: drag;
-      padding: 10px 16px; background: #141414; border-bottom: 1px solid #1e1e1e;
-      display: flex; align-items: center; gap: 8px; flex-shrink: 0;
-    }
-    #titlebar h1 { font-size: 13px; font-weight: 600; color: #ccc; flex: 1; }
-    #titlebar .controls { -webkit-app-region: no-drag; display: flex; gap: 6px; }
-    .ctrl-btn { width: 12px; height: 12px; border-radius: 50%; border: none; cursor: pointer; }
-    #btn-close { background: #ef4444; }
-    #status-dot { width: 7px; height: 7px; border-radius: 50%; background: #333; flex-shrink: 0; }
-    #status-dot.alive { background: #22c55e; }
-    #status-dot.dead  { background: #ef4444; }
+<!-- Plugins -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 
-    /* ── Tab bar ── */
-    #tabbar {
-      -webkit-app-region: no-drag;
-      display: flex; background: #111; border-bottom: 1px solid #1a1a1a; flex-shrink: 0;
-    }
-    .tab-btn {
-      flex: 1; padding: 8px 0; font-size: 11px; font-weight: 500; color: #555;
-      background: transparent; border: none; border-bottom: 2px solid transparent;
-      cursor: pointer; transition: all 0.15s; letter-spacing: 0.3px;
-    }
-    .tab-btn:hover { color: #888; }
-    .tab-btn.active { color: #6b9fff; border-bottom-color: #1d4ed8; }
+<style>
+/* ── Design tokens ──────────────────────────────────────────────────────── */
+:root {
+  --bg:        #080614;
+  --bg2:       #0e0b1f;
+  --card:      rgba(255,255,255,0.04);
+  --card2:     rgba(255,255,255,0.07);
+  --border:    rgba(167,139,250,0.18);
+  --border2:   rgba(167,139,250,0.35);
 
-    /* ── Stats strip ── */
-    #stats {
-      padding: 5px 16px; background: #0d0d0d; border-bottom: 1px solid #1a1a1a;
-      display: flex; gap: 12px; font-size: 10px; color: #444; flex-shrink: 0; flex-wrap: wrap;
-    }
-    #stats span b { color: #666; }
-    #tasks-toggle {
-      cursor: pointer; -webkit-app-region: no-drag;
-      padding: 1px 4px; border-radius: 4px; transition: background 0.15s;
-    }
-    #tasks-toggle:hover { background: #1a2030; }
-    #tasks-toggle.active b { color: #6b9fff; }
+  --purple:    #a78bfa;
+  --purple-d:  #7c3aed;
+  --mint:      #6ee7b7;
+  --pink:      #f0abfc;
+  --yellow:    #fcd34d;
+  --orange:    #fb923c;
+  --red:       #f87171;
+  --blue:      #60a5fa;
 
-    /* ── Task dropdown ── */
-    #task-dropdown { display: none; flex-direction: column; background: #0f1420; border-bottom: 1px solid #1e293b; max-height: 200px; overflow-y: auto; flex-shrink: 0; }
-    #task-dropdown.open { display: flex; }
-    #td-header { display: flex; align-items: center; justify-content: space-between; padding: 6px 14px; font-size: 10px; color: #555; border-bottom: 1px solid #1a1a1a; flex-shrink: 0; }
-    #td-header span:first-child { color: #6b9fff; font-weight: 600; }
-    #task-empty { padding: 12px; font-size: 12px; color: #444; text-align: center; }
-    .td-row { display: flex; align-items: center; gap: 8px; padding: 6px 14px; border-bottom: 1px solid #131820; transition: background 0.1s; }
-    .td-row:hover { background: #141c2a; }
-    .td-row.done { opacity: 0.35; }
-    .td-title { flex: 1; font-size: 11px; color: #d1d5db; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .td-due { font-size: 10px; color: #6ee7b7; flex-shrink: 0; }
-    .td-src { font-size: 9px; background: #1e1e2a; color: #a5b4fc; padding: 1px 5px; border-radius: 8px; flex-shrink: 0; }
-    .td-check { width: 18px; height: 18px; border-radius: 4px; border: 1px solid #2a2a2a; background: transparent; color: #444; cursor: pointer; flex-shrink: 0; font-size: 10px; transition: all 0.15s; }
-    .td-check:hover { background: #22c55e; color: #fff; border-color: #22c55e; }
-    .td-remove { width: 18px; height: 18px; border: none; background: transparent; color: #333; cursor: pointer; flex-shrink: 0; font-size: 13px; transition: color 0.15s; }
-    .td-remove:hover { color: #ef4444; }
+  --text:      #f0e6ff;
+  --text2:     #9d8ec4;
+  --text3:     #4d4270;
 
-    /* ══ CHAT TAB ══ */
-    #tab-chat { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
-    #messages { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
-    .msg { display: flex; flex-direction: column; max-width: 82%; gap: 3px; }
-    .msg.user { align-self: flex-end; align-items: flex-end; }
-    .msg.luke { align-self: flex-start; align-items: flex-start; }
-    .bubble { padding: 9px 13px; border-radius: 14px; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
-    .msg.user .bubble { background: #1d4ed8; color: #fff; border-bottom-right-radius: 4px; }
-    .msg.luke .bubble { background: #1e1e1e; color: #e8e8e8; border: 1px solid #2a2a2a; border-bottom-left-radius: 4px; }
-    .msg .ts { font-size: 10px; color: #444; padding: 0 4px; }
-    .typing .bubble { display: flex; gap: 4px; align-items: center; }
-    .dot { width: 5px; height: 5px; border-radius: 50%; background: #555; animation: bounce 1.2s infinite; }
-    .dot:nth-child(2) { animation-delay: 0.2s; }
-    .dot:nth-child(3) { animation-delay: 0.4s; }
-    @keyframes bounce { 0%,80%,100% { transform:translateY(0); } 40% { transform:translateY(-4px); } }
+  --zone:      var(--mint);  /* updated dynamically */
 
-    .task-card { background: #161b27 !important; border: 1px solid #1d4ed8 !important; min-width: 220px; padding: 10px 13px !important; display: flex; flex-direction: column; gap: 5px; }
-    .tc-header { font-size: 11px; color: #6b9fff; margin-bottom: 2px; }
-    .tc-title  { font-size: 13px; font-weight: 600; color: #e8e8e8; }
-    .tc-ctx    { font-size: 11px; color: #6b7280; font-style: italic; }
-    .tc-meta   { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
-    .tc-due    { font-size: 10px; background: #1e2a1e; color: #6ee7b7; padding: 2px 7px; border-radius: 10px; }
-    .tc-pri    { font-size: 10px; background: #2a1e1e; color: #fca5a5; padding: 2px 7px; border-radius: 10px; }
-    .tc-src    { font-size: 10px; background: #1e1e2a; color: #a5b4fc; padding: 2px 7px; border-radius: 10px; }
-    .tc-actions { margin-top: 4px; }
-    .tc-done-btn { font-size: 11px; padding: 3px 10px; border-radius: 6px; border: 1px solid #2a2a2a; background: #1e1e1e; color: #6b9fff; cursor: pointer; transition: all 0.15s; }
-    .tc-done-btn:hover { background: #1d4ed8; color: #fff; border-color: #1d4ed8; }
-    .tc-done-label { font-size: 11px; color: #22c55e; }
-    .task-list { background: #0f1420 !important; border: 1px solid #1e293b !important; min-width: 260px; padding: 10px 13px !important; }
-    .tl-body { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
-    .tl-row { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: 6px; transition: background 0.1s; }
-    .tl-row:hover { background: #1a2030; }
-    .tl-num { font-size: 10px; color: #444; width: 14px; flex-shrink: 0; }
-    .tl-title { flex: 1; font-size: 12px; color: #d1d5db; }
-    .tl-due { color: #6ee7b7; font-size: 10px; }
-    .tl-screen { font-size: 9px; background: #1e1e2a; color: #a5b4fc; padding: 1px 5px; border-radius: 8px; }
-    .tl-done-btn { font-size: 11px; width: 22px; height: 22px; border-radius: 5px; border: 1px solid #2a2a2a; background: transparent; color: #444; cursor: pointer; flex-shrink: 0; transition: all 0.15s; display: flex; align-items: center; justify-content: center; }
-    .tl-done-btn:hover { background: #22c55e; color: #fff; border-color: #22c55e; }
-    .tl-empty { font-size: 12px; color: #555; padding: 4px 0; }
+  --font: -apple-system,'Segoe UI',system-ui,sans-serif;
+  --radius: 16px;
+  --radius-s: 10px;
+}
 
-    #chips { padding: 7px 14px; display: flex; gap: 6px; flex-wrap: wrap; background: #111; border-top: 1px solid #1a1a1a; flex-shrink: 0; }
-    .chip { font-size: 10px; padding: 3px 9px; border-radius: 20px; border: 1px solid #2a2a2a; background: #1a1a1a; color: #555; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
-    .chip:hover { border-color: #1d4ed8; color: #93c5fd; }
+/* ── Reset ──────────────────────────────────────────────────────────────── */
+*,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
 
-    #input-bar { padding: 9px 13px; border-top: 1px solid #1e1e1e; background: #141414; display: flex; gap: 8px; flex-shrink: 0; }
-    #input { flex: 1; background: #1e1e1e; border: 1px solid #2a2a2a; border-radius: 10px; padding: 7px 12px; color: #e8e8e8; font-size: 13px; resize: none; outline: none; font-family: inherit; max-height: 80px; transition: border-color 0.2s; }
-    #input:focus { border-color: #1d4ed8; }
-    #input::placeholder { color: #444; }
-    #send-btn { background: #1d4ed8; border: none; border-radius: 10px; padding: 0 14px; color: #fff; font-size: 13px; cursor: pointer; align-self: flex-end; height: 34px; transition: background 0.2s; }
-    #send-btn:hover { background: #1e40af; }
-    #send-btn:disabled { background: #1e2a4a; cursor: not-allowed; }
-    #messages::-webkit-scrollbar { width: 3px; }
-    #messages::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 4px; }
+html,body {
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 13.5px;
+  line-height: 1.6;
+  letter-spacing: 0.012em;
+  border-radius: var(--radius);
+  border: 1.5px solid var(--border2);
+}
 
-    /* ══ PRODUCTIVITY TAB ══ */
-    #tab-prod { display: none; flex-direction: column; flex: 1; overflow: hidden; }
-    #tab-prod.active { display: flex; }
+::-webkit-scrollbar { width:4px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:rgba(167,139,250,0.25); border-radius:99px; }
+:focus-visible { outline:2px solid var(--purple); outline-offset:2px; border-radius:4px; }
 
-    #prod-body { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
-    #prod-body::-webkit-scrollbar { width: 3px; }
-    #prod-body::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 4px; }
+/* ── Grain overlay ──────────────────────────────────────────────────────── */
+body::before {
+  content:'';
+  position:fixed; inset:0; pointer-events:none; z-index:999;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  opacity:0.4;
+}
 
-    /* score cards */
-    .score-row { display: flex; gap: 8px; }
-    .score-card { flex: 1; background: #141414; border: 1px solid #1e1e1e; border-radius: 10px; padding: 10px 8px; display: flex; flex-direction: column; align-items: center; gap: 3px; }
-    .score-val { font-size: 26px; font-weight: 700; line-height: 1; }
-    .score-val.green  { color: #22c55e; }
-    .score-val.yellow { color: #eab308; }
-    .score-val.red    { color: #ef4444; }
-    .score-val.blue   { color: #6b9fff; }
-    .score-label { font-size: 9px; color: #555; text-align: center; line-height: 1.3; }
-    .risk-badge { display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 20px; }
-    .risk-badge.Low    { background: #1a2e1a; color: #4ade80; }
-    .risk-badge.Medium { background: #2a2510; color: #fbbf24; }
-    .risk-badge.High   { background: #2a1515; color: #f87171; }
+/* ── Glass card ─────────────────────────────────────────────────────────── */
+.glass {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.glass-sm {
+  background: var(--card2);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: var(--radius-s);
+  backdrop-filter: blur(8px);
+}
 
-    /* sections */
-    .p-section { background: #111; border: 1px solid #1a1a1a; border-radius: 10px; overflow: hidden; }
-    .p-sec-title { font-size: 10px; font-weight: 600; color: #555; padding: 7px 12px; border-bottom: 1px solid #1a1a1a; text-transform: uppercase; letter-spacing: 0.5px; display: flex; justify-content: space-between; align-items: center; }
-    .p-sec-body { padding: 10px 12px; }
-    .refresh-btn { font-size: 11px; color: #444; background: transparent; border: none; cursor: pointer; padding: 1px 4px; border-radius: 4px; }
-    .refresh-btn:hover { color: #6b9fff; }
+/* ── Header ─────────────────────────────────────────────────────────────── */
+#header {
+  -webkit-app-region: drag;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 16px;
+  background: linear-gradient(135deg,
+    rgba(124,58,237,0.35) 0%,
+    rgba(167,139,250,0.18) 50%,
+    rgba(110,231,183,0.12) 100%);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  position: relative;
+}
+#header::after {
+  content:'';
+  position:absolute; inset:0;
+  background: radial-gradient(ellipse 60% 80% at 20% 50%, rgba(167,139,250,0.08), transparent);
+  pointer-events:none;
+}
 
-    /* summary bar */
-    .summary-bar { display: flex; height: 7px; border-radius: 6px; overflow: hidden; gap: 2px; margin: 6px 0; }
-    .summary-seg { border-radius: 3px; }
-    .split-labels { display: flex; gap: 12px; font-size: 10px; color: #555; margin-top: 3px; }
-    .split-labels b { color: #888; }
+#header-bunny { font-size:24px; line-height:1; flex-shrink:0; }
 
-    /* category bars */
-    .cat-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-    .cat-row:last-child { margin-bottom: 0; }
-    .cat-icon { font-size: 11px; width: 16px; flex-shrink: 0; }
-    .cat-name { font-size: 10px; color: #999; width: 80px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .cat-bar-wrap { flex: 1; background: #1a1a1a; border-radius: 4px; height: 5px; overflow: hidden; }
-    .cat-bar { height: 100%; border-radius: 4px; transition: width 0.6s ease; }
-    .cat-time { font-size: 10px; color: #555; width: 32px; text-align: right; flex-shrink: 0; }
+.h-text { display:flex; flex-direction:column; gap:1px; }
+#header-name {
+  font-size:15px; font-weight:800;
+  background: linear-gradient(90deg, var(--purple), var(--pink));
+  -webkit-background-clip:text; background-clip:text;
+  -webkit-text-fill-color:transparent;
+  letter-spacing:0.06em;
+}
+#header-sub { font-size:10.5px; color:var(--text3); letter-spacing:0.03em; }
 
-    /* bar colors */
-    .bar-coding             { background: #3b82f6; }
-    .bar-writing            { background: #8b5cf6; }
-    .bar-learning           { background: #06b6d4; }
-    .bar-research           { background: #6366f1; }
-    .bar-email              { background: #f59e0b; }
-    .bar-meeting            { background: #ec4899; }
-    .bar-ai_tools           { background: #10b981; }
-    .bar-design             { background: #f97316; }
-    .bar-productivity_tools { background: #84cc16; }
-    .bar-job_search         { background: #a78bfa; }
-    .bar-communication      { background: #60a5fa; }
-    .bar-browsing           { background: #94a3b8; }
-    .bar-youtube_video      { background: #ef4444; }
-    .bar-social_media       { background: #f43f5e; }
-    .bar-gaming             { background: #dc2626; }
-    .bar-distraction        { background: #b91c1c; }
-    .bar-idle               { background: #374151; }
-    .bar-other              { background: #374151; }
+#status-badge {
+  margin-left:auto;
+  display:flex; align-items:center; gap:5px;
+  background:rgba(255,255,255,0.05);
+  border:1px solid var(--border);
+  border-radius:99px;
+  padding:4px 10px;
+  font-size:11px; color:var(--text3);
+  -webkit-app-region:no-drag;
+}
+#sdot {
+  width:7px; height:7px; border-radius:50%;
+  background:var(--text3);
+  transition:background 0.4s, box-shadow 0.4s;
+  flex-shrink:0;
+}
+#sdot.alive { background:var(--mint); box-shadow:0 0 6px rgba(110,231,183,.7); }
+#sdot.dead  { background:var(--red); }
 
-    /* hourly chart */
-    .hourly-grid { display: flex; gap: 3px; align-items: flex-end; height: 48px; padding: 2px 0; }
-    .hour-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; }
-    .hour-bar { width: 100%; border-radius: 3px 3px 0 0; min-height: 2px; }
-    .hour-lbl { font-size: 7px; color: #444; }
+#close-x {
+  -webkit-app-region:no-drag;
+  background:transparent; border:none;
+  color:var(--text3); font-size:16px; cursor:pointer;
+  padding:4px 6px; border-radius:8px; line-height:1;
+  transition:color .2s, background .2s;
+}
+#close-x:hover { color:var(--red); background:rgba(248,113,113,.12); }
 
-    /* activity feed */
-    .act-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid #141414; }
-    .act-row:last-child { border-bottom: none; }
-    .act-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-    .act-dot.p  { background: #22c55e; }
-    .act-dot.u  { background: #ef4444; }
-    .act-dot.n  { background: #6b7280; }
-    .act-title { flex: 1; font-size: 11px; color: #ccc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .act-cat   { font-size: 9px; color: #555; flex-shrink: 0; }
-    .act-time  { font-size: 9px; color: #3a3a3a; flex-shrink: 0; }
+/* ── Tab bar ─────────────────────────────────────────────────────────────── */
+#tabbar {
+  -webkit-app-region:no-drag;
+  display:flex; gap:4px;
+  padding:8px 12px;
+  background:var(--bg2);
+  border-bottom:1px solid var(--border);
+  flex-shrink:0;
+}
+.tab {
+  flex:1; display:flex; flex-direction:column; align-items:center; gap:2px;
+  padding:7px 4px;
+  background:transparent;
+  border:1px solid transparent;
+  border-radius:var(--radius-s);
+  color:var(--text3);
+  font-family:var(--font); font-size:10px; font-weight:700;
+  letter-spacing:0.07em; text-transform:uppercase;
+  cursor:pointer;
+  transition:all 0.2s;
+}
+.tab .ti { font-size:16px; line-height:1; }
+.tab:hover { color:var(--text2); background:var(--card); }
+.tab.active {
+  color:var(--purple);
+  background:rgba(167,139,250,0.1);
+  border-color:rgba(167,139,250,0.25);
+}
 
-    .prod-loading { text-align: center; padding: 30px; font-size: 12px; color: #444; }
-    .prod-empty   { text-align: center; padding: 20px; font-size: 11px; color: #333; }
-  </style>
+/* ── Panels ──────────────────────────────────────────────────────────────── */
+#panels { flex:1; overflow:hidden; position:relative; }
+.panel {
+  display:none; flex-direction:column;
+  height:100%; overflow-y:auto;
+  padding:16px 14px 14px;
+  gap:12px;
+}
+.panel.active { display:flex; }
+.panel-enter { animation:panelIn 0.25s ease forwards; }
+@keyframes panelIn {
+  from { opacity:0; transform:translateY(6px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+
+/* ── Shared components ───────────────────────────────────────────────────── */
+.section-lbl {
+  font-size:10px; font-weight:800; letter-spacing:0.12em;
+  text-transform:uppercase; color:var(--text3);
+  margin-bottom:6px;
+}
+.btn {
+  display:inline-flex; align-items:center; justify-content:center; gap:7px;
+  font-family:var(--font); font-size:13.5px; font-weight:700;
+  padding:11px 18px; border-radius:var(--radius-s); border:none; cursor:pointer;
+  transition:opacity .2s, transform .12s;
+  letter-spacing:0.02em;
+}
+.btn:hover { opacity:.88; }
+.btn:active { transform:scale(.97); }
+.btn:disabled { opacity:.35; cursor:not-allowed; transform:none; }
+
+.btn-glow {
+  background:linear-gradient(135deg, var(--purple), var(--purple-d));
+  color:#fff;
+  box-shadow:0 4px 20px rgba(124,58,237,.35);
+}
+.btn-glow:hover { box-shadow:0 6px 28px rgba(124,58,237,.5); }
+
+.btn-ghost {
+  background:var(--card2); color:var(--text2);
+  border:1px solid var(--border);
+}
+
+.field {
+  width:100%; background:var(--card2); color:var(--text);
+  border:1.5px solid var(--border); border-radius:var(--radius-s);
+  padding:10px 14px; font-family:var(--font); font-size:13.5px; line-height:1.5;
+  outline:none; transition:border-color .2s;
+}
+.field:focus { border-color:var(--purple); }
+.field::placeholder { color:var(--text3); }
+
+.chip {
+  display:inline-flex; align-items:center; gap:5px;
+  padding:5px 11px; background:var(--card2);
+  border:1px solid var(--border); border-radius:99px;
+  font-size:12px; color:var(--text2); cursor:pointer;
+  transition:border-color .2s, color .2s, background .2s;
+}
+.chip:hover { border-color:var(--purple); color:var(--purple); background:rgba(167,139,250,.08); }
+
+.empty {
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:8px; padding:32px 16px; color:var(--text3); font-size:13px; text-align:center;
+}
+.empty-icon { font-size:34px; opacity:.45; }
+
+/* ── Spinner / typing ────────────────────────────────────────────────────── */
+.spinner {
+  display:inline-block; width:18px; height:18px;
+  border:2px solid var(--card2); border-top-color:var(--purple);
+  border-radius:50%; animation:spin .7s linear infinite;
+}
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.typing { display:flex; gap:4px; align-items:center; height:20px; }
+.typing span {
+  width:6px; height:6px; background:var(--text3); border-radius:50%;
+  animation:tdot 1.2s ease infinite;
+}
+.typing span:nth-child(2) { animation-delay:.2s; }
+.typing span:nth-child(3) { animation-delay:.4s; }
+@keyframes tdot {
+  0%,60%,100% { transform:translateY(0); opacity:.5; }
+  30%          { transform:translateY(-5px); opacity:1; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ① FOCUS TAB
+══════════════════════════════════════════════════════════════════════════ */
+
+/* Zone status bar */
+#zone-bar {
+  border-radius:var(--radius-s);
+  padding:10px 16px;
+  display:flex; align-items:center; gap:10px;
+  transition:background .8s, border-color .8s;
+  background:rgba(110,231,183,0.08);
+  border:1px solid rgba(110,231,183,0.25);
+}
+#zone-bar .zb-icon { font-size:18px; line-height:1; }
+#zone-bar .zb-text { font-size:13.5px; font-weight:700; letter-spacing:0.04em; }
+#zone-bar .zb-sub  { font-size:12px; color:var(--text2); margin-top:1px; }
+
+/* Score ring */
+#ring-wrap {
+  display:flex; justify-content:center; align-items:center;
+  position:relative; width:130px; height:130px; flex-shrink:0;
+}
+#ring-svg { overflow:visible; }
+#ring-track { transition:none; }
+#ring-arc {
+  transition:stroke-dashoffset .8s cubic-bezier(.4,0,.2,1), stroke .8s ease;
+  filter:drop-shadow(0 0 10px var(--zone));
+}
+#ring-center {
+  position:absolute; inset:0;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+}
+#ring-score {
+  font-size:32px; font-weight:900; line-height:1;
+  color:var(--text); font-variant-numeric:tabular-nums;
+}
+#ring-lbl { font-size:9px; letter-spacing:.12em; text-transform:uppercase; color:var(--text3); }
+
+/* Score + info row */
+#score-row { display:flex; align-items:center; gap:18px; }
+#score-info { flex:1; display:flex; flex-direction:column; gap:6px; }
+#coach-msg { font-size:13px; color:var(--text2); line-height:1.6; }
+
+/* Focus pulse animation when OVERLOAD/RAGE */
+@keyframes danger-pulse {
+  0%,100% { box-shadow:0 0 0 0 rgba(248,113,113,0); }
+  50%      { box-shadow:0 0 0 6px rgba(248,113,113,0.15); }
+}
+.danger { animation:danger-pulse 1.8s ease-in-out infinite; }
+
+/* Signal grid */
+#sig-grid {
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:6px;
+}
+.sig-tile {
+  background:var(--card2);
+  border:1px solid var(--border);
+  border-radius:var(--radius-s);
+  padding:8px 6px;
+  text-align:center;
+  transition:border-color .3s, background .3s;
+}
+.sig-tile .st-key { font-size:9px; letter-spacing:.08em; text-transform:uppercase; color:var(--text3); }
+.sig-tile .st-val { font-size:14px; font-weight:700; color:var(--text2); margin-top:2px; }
+.sig-tile.alert { border-color:rgba(248,113,113,.45); background:rgba(248,113,113,.08); }
+.sig-tile.alert .st-val { color:var(--red); }
+
+/* App row */
+#app-row {
+  display:flex; align-items:center; gap:8px;
+  padding:8px 12px;
+  background:var(--card2); border:1px solid var(--border); border-radius:var(--radius-s);
+  font-size:12px; color:var(--text2);
+}
+#app-row .app-dot { width:8px; height:8px; border-radius:50%; background:var(--purple); flex-shrink:0; }
+#app-name { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+/* Stress banner */
+#stress-banner {
+  display:none;
+  padding:10px 14px; border-radius:var(--radius-s);
+  background:rgba(248,113,113,.1); border:1px solid rgba(248,113,113,.3);
+  color:var(--red); font-size:13px; text-align:center; line-height:1.5;
+  animation:panelIn .3s ease forwards;
+}
+#stress-banner.show { display:block; }
+
+/* Focus button */
+#focus-btn {
+  width:100%; height:46px;
+  border-radius:var(--radius-s);
+  font-size:13.5px; font-weight:800; letter-spacing:.05em;
+  border:none; cursor:pointer;
+  transition:all .25s;
+  background:linear-gradient(135deg, var(--purple), var(--purple-d));
+  color:#fff;
+  box-shadow:0 4px 24px rgba(124,58,237,.3);
+}
+#focus-btn:hover { box-shadow:0 6px 32px rgba(124,58,237,.5); transform:translateY(-1px); }
+#focus-btn:active { transform:translateY(0); }
+#focus-btn.active-focus {
+  background:linear-gradient(135deg, var(--mint), #059669);
+  box-shadow:0 4px 24px rgba(110,231,183,.3);
+}
+
+/* Recent events */
+#recent-events { display:flex; flex-direction:column; gap:5px; }
+.ev-row {
+  display:flex; align-items:center; gap:8px;
+  padding:8px 10px;
+  background:var(--card2); border-radius:var(--radius-s);
+  border-left:3px solid var(--border2);
+}
+.ev-time { font-size:11px; color:var(--text3); flex-shrink:0; font-variant-numeric:tabular-nums; }
+.ev-title { flex:1; font-size:12.5px; color:var(--text2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ev-cat {
+  font-size:10px; font-weight:700; padding:2px 7px;
+  border-radius:99px; flex-shrink:0; color:var(--bg);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ② MEMORY TAB
+══════════════════════════════════════════════════════════════════════════ */
+#memory-panel { padding:0; gap:0; }
+#mem-msgs {
+  flex:1; overflow-y:auto; padding:14px;
+  display:flex; flex-direction:column; gap:10px;
+}
+.msg-row { display:flex; gap:8px; align-items:flex-end; animation:fadeUp .28s ease forwards; }
+.msg-row.user { flex-direction:row-reverse; }
+@keyframes fadeUp {
+  from { opacity:0; transform:translateY(6px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+.msg-av {
+  width:28px; height:28px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  font-size:14px; flex-shrink:0;
+  background:var(--card2); border:1px solid var(--border);
+}
+.msg-bbl {
+  max-width:78%; padding:10px 13px; border-radius:14px;
+  font-size:13.5px; line-height:1.65; word-break:break-word;
+}
+.msg-row.user  .msg-bbl { background:var(--purple-d); color:#fff; border-bottom-right-radius:4px; }
+.msg-row.luna  .msg-bbl { background:var(--card2); color:var(--text); border:1px solid var(--border); border-bottom-left-radius:4px; }
+.msg-row.sys   .msg-bbl { background:transparent; color:var(--text3); font-size:12px; font-style:italic; }
+
+#chips { display:flex; flex-wrap:wrap; gap:6px; padding:6px 14px 10px; flex-shrink:0; }
+
+#mem-bar {
+  display:flex; gap:7px; padding:9px 12px 13px;
+  border-top:1px solid var(--border); flex-shrink:0;
+}
+#mem-bar .field { flex:1; }
+#msend {
+  width:38px; height:38px; border-radius:var(--radius-s);
+  background:var(--purple-d); border:none; color:#fff;
+  font-size:17px; cursor:pointer; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center;
+  transition:opacity .2s, transform .12s;
+}
+#msend:hover { opacity:.85; }
+#msend:active { transform:scale(.93); }
+#msend:disabled { opacity:.3; cursor:not-allowed; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ③ TASKS TAB
+══════════════════════════════════════════════════════════════════════════ */
+#task-add { display:flex; gap:7px; }
+#task-add .field { flex:1; }
+
+#task-list { display:flex; flex-direction:column; gap:7px; }
+.task-card {
+  display:flex; align-items:center; gap:10px;
+  padding:11px 13px;
+  background:var(--card); border:1px solid var(--border);
+  border-radius:var(--radius-s); border-left-width:3px;
+  transition:opacity .35s, transform .35s;
+}
+.task-card.high   { border-left-color:var(--red);    }
+.task-card.normal { border-left-color:var(--purple);  }
+.task-card.low    { border-left-color:var(--text3);   }
+.task-card.completing { opacity:0; transform:translateX(20px); }
+
+.task-chk {
+  width:20px; height:20px; border:2px solid var(--border2);
+  border-radius:6px; background:transparent; cursor:pointer;
+  flex-shrink:0; transition:background .2s, border-color .2s;
+  appearance:none; -webkit-appearance:none; position:relative;
+}
+.task-chk:hover { border-color:var(--purple); }
+.task-chk:checked { background:var(--purple); border-color:var(--purple); }
+.task-chk:checked::after {
+  content:'✓'; position:absolute; inset:0;
+  display:flex; align-items:center; justify-content:center;
+  color:#fff; font-size:12px; font-weight:800;
+}
+
+.task-title { flex:1; font-size:13.5px; color:var(--text); line-height:1.4; }
+.task-due { font-size:11px; color:var(--text3); flex-shrink:0; }
+.task-due.overdue { color:var(--red); font-weight:700; }
+.task-src { font-size:10px; color:var(--text3); padding:2px 6px; background:var(--card2); border-radius:99px; flex-shrink:0; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ④ STATS TAB
+══════════════════════════════════════════════════════════════════════════ */
+#stats-pills { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+.sp {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:var(--radius); padding:13px; text-align:center;
+}
+.sp-n { font-size:24px; font-weight:900; color:var(--text); line-height:1.1; }
+.sp-l { font-size:10.5px; color:var(--text3); margin-top:3px; letter-spacing:.04em; }
+
+#doughnut-wrap {
+  display:flex; align-items:center; justify-content:center; gap:20px;
+  padding:16px;
+  background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+}
+#doughnut-wrap canvas { max-width:130px; max-height:130px; }
+#donut-legend { display:flex; flex-direction:column; gap:8px; }
+.dl-row { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text2); }
+.dl-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+
+#cat-bars { display:flex; flex-direction:column; gap:7px; }
+.cb-row { display:flex; align-items:center; gap:8px; }
+.cb-name { font-size:11.5px; color:var(--text2); width:105px; flex-shrink:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.cb-wrap { flex:1; background:var(--card2); border-radius:99px; height:7px; overflow:hidden; }
+.cb-fill { height:100%; border-radius:99px; transition:width .6s cubic-bezier(.4,0,.2,1); }
+.cb-time { font-size:11px; color:var(--text3); width:38px; text-align:right; flex-shrink:0; font-variant-numeric:tabular-nums; }
+
+@media (prefers-reduced-motion:reduce) {
+  *,*::before,*::after { animation-duration:.01ms!important; transition-duration:.01ms!important; }
+}
+</style>
 </head>
-<body>
+<body style="display:flex;flex-direction:column;height:100vh;">
 
-<!-- Titlebar -->
-<div id="titlebar">
-  <div id="status-dot"></div>
-  <h1>🧠 Luke SuperMemory</h1>
-  <div class="controls">
-    <button class="ctrl-btn" id="btn-close" onclick="window.luke.closeChat()"></button>
+<!-- ── Header ────────────────────────────────────────────────────────────── -->
+<div id="header">
+  <div id="header-bunny">🐰</div>
+  <div class="h-text">
+    <div id="header-name">Luna</div>
+    <div id="header-sub">your second brain</div>
   </div>
+  <div id="status-badge">
+    <div id="sdot"></div>
+    <span id="stext">connecting</span>
+  </div>
+  <button id="close-x" onclick="window.luke.closeChat()">✕</button>
 </div>
 
-<!-- Tab bar -->
-<div id="tabbar">
-  <button class="tab-btn active" id="tbtn-chat" onclick="switchTab('chat')">💬 Memory Chat</button>
-  <button class="tab-btn"        id="tbtn-prod" onclick="switchTab('prod')">📊 Productivity</button>
+<!-- ── Tab bar ───────────────────────────────────────────────────────────── -->
+<div id="tabbar" role="tablist">
+  <button class="tab active" data-tab="focus">
+    <span class="ti">🎯</span><span>Focus</span>
+  </button>
+  <button class="tab" data-tab="memory">
+    <span class="ti">🧠</span><span>Memory</span>
+  </button>
+  <button class="tab" data-tab="tasks">
+    <span class="ti">✅</span><span>Tasks</span>
+  </button>
+  <button class="tab" data-tab="stats">
+    <span class="ti">📊</span><span>Stats</span>
+  </button>
 </div>
 
-<!-- Stats strip -->
-<div id="stats">
-  <span>📸 <b id="s-buf">—</b></span>
-  <span>🪟 <b id="s-win">—</b></span>
-  <span>💼 <b id="s-jobs">—</b></span>
-  <span>🔗 <b id="s-links">—</b></span>
-  <span id="tasks-toggle" onclick="toggleTaskDropdown()">📋 <b id="s-tasks">—</b></span>
-  <span style="margin-left:auto" id="s-prod-live"></span>
-</div>
+<!-- ── Panels ────────────────────────────────────────────────────────────── -->
+<div id="panels">
 
-<!-- Task dropdown -->
-<div id="task-dropdown">
-  <div id="td-header">
-    <span>📋 Tasks</span>
-    <span>✓ complete · ✕ remove</span>
-  </div>
-  <div id="task-empty" style="display:none">No pending tasks 🎉</div>
-  <div id="td-list"></div>
-</div>
+  <!-- ① FOCUS ─────────────────────────────────────────────────────────── -->
+  <div class="panel active" id="focus-panel">
 
-<!-- ══ CHAT TAB ══ -->
-<div id="tab-chat">
-  <div id="messages">
-    <div class="msg luke">
-      <div class="bubble">Hey! I'm watching your screen and building memory. Ask me anything — or switch to 📊 Productivity for your dashboard.</div>
-      <span class="ts">now</span>
-    </div>
-  </div>
-  <div id="chips">
-    <div class="chip" onclick="send('What was I working on at 2pm?')">at 2pm?</div>
-    <div class="chip" onclick="send('List all companies I applied to')">companies applied</div>
-    <div class="chip" onclick="send('What links did I open today?')">links today</div>
-    <div class="chip" onclick="send('Who is Sarah?')">who is Sarah?</div>
-    <div class="chip" onclick="send('/tasks')">/tasks</div>
-  </div>
-  <div id="input-bar">
-    <textarea id="input" rows="1" placeholder="Ask anything · /task add task · /tasks · /done 1"></textarea>
-    <button id="send-btn" onclick="sendMessage()">Send</button>
-  </div>
-</div>
-
-<!-- ══ PRODUCTIVITY TAB ══ -->
-<div id="tab-prod">
-  <div id="prod-body">
-    <div class="prod-loading" id="prod-loading">Loading dashboard…</div>
-
-    <!-- Score cards -->
-    <div class="score-row" id="prod-scores" style="display:none">
-      <div class="score-card">
-        <div class="score-val" id="ps-score">—</div>
-        <div class="score-label">Productivity</div>
-      </div>
-      <div class="score-card">
-        <div class="score-val blue" id="ps-focus">—</div>
-        <div class="score-label">Focus</div>
-      </div>
-      <div class="score-card">
-        <div style="margin-top:4px"><span class="risk-badge" id="ps-risk">—</span></div>
-        <div class="score-label" style="margin-top:4px">Risk Level</div>
-      </div>
-      <div class="score-card">
-        <div class="score-val" id="ps-switches" style="color:#a78bfa">—</div>
-        <div class="score-label">App Switches</div>
+    <!-- Zone bar -->
+    <div id="zone-bar">
+      <span class="zb-icon" id="zb-icon">🟢</span>
+      <div>
+        <div class="zb-text" id="zb-text">Connecting…</div>
+        <div class="zb-sub"  id="zb-sub">Waiting for CLR data</div>
       </div>
     </div>
 
-    <!-- Time split -->
-    <div class="p-section" id="p-split" style="display:none">
-      <div class="p-sec-title">
-        Today's Time Split
-        <span id="p-total" style="color:#3a3a3a;font-weight:400"></span>
-      </div>
-      <div class="p-sec-body">
-        <div class="summary-bar" id="p-splitbar"></div>
-        <div class="split-labels">
-          <span><span style="color:#22c55e">■</span> Productive <b id="pp-p">—</b></span>
-          <span><span style="color:#6b7280">■</span> Neutral <b id="pp-n">—</b></span>
-          <span><span style="color:#ef4444">■</span> Unproductive <b id="pp-u">—</b></span>
+    <!-- Ring + info -->
+    <div class="glass" style="padding:16px;">
+      <div id="score-row">
+        <div id="ring-wrap">
+          <svg id="ring-svg" width="130" height="130" viewBox="0 0 130 130">
+            <circle id="ring-track" cx="65" cy="65" r="54"
+              fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="11"/>
+            <circle id="ring-arc" cx="65" cy="65" r="54"
+              fill="none" stroke="#6ee7b7" stroke-width="11" stroke-linecap="round"
+              stroke-dasharray="339.3" stroke-dashoffset="339.3"
+              transform="rotate(-90 65 65)"/>
+          </svg>
+          <div id="ring-center">
+            <div id="ring-score">—</div>
+            <div id="ring-lbl">load</div>
+          </div>
+        </div>
+        <div id="score-info">
+          <div id="coach-msg">Starting up…</div>
         </div>
       </div>
     </div>
 
-    <!-- Category breakdown -->
-    <div class="p-section" id="p-cats" style="display:none">
-      <div class="p-sec-title">
-        Category Breakdown
-        <button class="refresh-btn" onclick="loadProductivity()">↻ refresh</button>
+    <!-- Signal tiles -->
+    <div id="sig-grid">
+      <div class="sig-tile" id="st-sw">  <div class="st-key">switches</div><div class="st-val" id="sv-sw">—</div></div>
+      <div class="sig-tile" id="st-bs">  <div class="st-key">bursts</div>  <div class="st-val" id="sv-bs">—</div></div>
+      <div class="sig-tile" id="st-id">  <div class="st-key">idle</div>    <div class="st-val" id="sv-id">—</div></div>
+      <div class="sig-tile" id="st-ey">  <div class="st-key">eye</div>     <div class="st-val" id="sv-ey">—</div></div>
+      <div class="sig-tile" id="st-fc">  <div class="st-key">face</div>    <div class="st-val" id="sv-fc">·</div></div>
+      <div class="sig-tile" id="st-hd">  <div class="st-key">head</div>    <div class="st-val" id="sv-hd">·</div></div>
+      <div class="sig-tile" id="st-cal" style="grid-column:span 2;">
+        <div class="st-key">call</div><div class="st-val" id="sv-cal">—</div>
       </div>
-      <div class="p-sec-body" id="p-cats-body"></div>
     </div>
 
-    <!-- Hourly chart -->
-    <div class="p-section" id="p-hourly" style="display:none">
-      <div class="p-sec-title">Hourly Productivity Score</div>
-      <div class="p-sec-body">
-        <div class="hourly-grid" id="p-hourly-grid"></div>
-        <div style="display:flex;justify-content:space-between;font-size:9px;color:#333;margin-top:4px">
-          <span style="color:#22c55e">■ high ≥70</span>
-          <span style="color:#eab308">■ medium 45–70</span>
-          <span style="color:#ef4444">■ low &lt;45</span>
-        </div>
-      </div>
+    <!-- Active app -->
+    <div id="app-row">
+      <div class="app-dot" id="app-dot"></div>
+      <span id="app-name">—</span>
     </div>
+
+    <!-- Stress banner -->
+    <div id="stress-banner"></div>
+
+    <!-- Focus button -->
+    <button id="focus-btn" onclick="toggleFocus()">▶ &nbsp; START FOCUS SESSION</button>
 
     <!-- Recent activity -->
-    <div class="p-section" id="p-activity" style="display:none">
-      <div class="p-sec-title">Recent Activity</div>
-      <div class="p-sec-body" id="p-act-body"></div>
+    <div>
+      <div class="section-lbl">Recent Activity</div>
+      <div id="recent-events"><div class="empty"><span class="spinner"></span></div></div>
+    </div>
+  </div>
+
+  <!-- ② MEMORY ─────────────────────────────────────────────────────────── -->
+  <div class="panel" id="memory-panel">
+    <div id="mem-msgs" role="log" aria-live="polite">
+      <div class="msg-row sys">
+        <div class="msg-bbl">Hi! Ask me anything about your screen history, tasks, or focus 🐰</div>
+      </div>
+    </div>
+    <div id="chips">
+      <button class="chip" onclick="sendChip('What am I working on right now?')">📍 Right now</button>
+      <button class="chip" onclick="sendChip('What were my tasks today?')">✅ Tasks today</button>
+      <button class="chip" onclick="sendChip('What links did I open recently?')">🔗 Recent links</button>
+      <button class="chip" onclick="sendChip('Do I have any upcoming deadlines?')">⏰ Deadlines</button>
+    </div>
+    <div id="mem-bar">
+      <input class="field" id="minput" type="text"
+             placeholder="Ask Luna anything about your day…"
+             aria-label="Message"
+             onkeydown="if(event.key==='Enter')sendMem()"/>
+      <button id="msend" onclick="sendMem()" aria-label="Send">↑</button>
+    </div>
+  </div>
+
+  <!-- ③ TASKS ──────────────────────────────────────────────────────────── -->
+  <div class="panel" id="tasks-panel">
+    <div id="task-add">
+      <input class="field" id="tinput" type="text"
+             placeholder="New task… e.g. Review PR by Friday !high"
+             aria-label="New task"
+             onkeydown="if(event.key==='Enter')addTask()"/>
+      <button class="btn btn-glow" onclick="addTask()" style="padding:10px 14px;flex-shrink:0;">+</button>
+    </div>
+    <div>
+      <div class="section-lbl">Pending</div>
+      <div id="task-list"><div class="empty"><span class="spinner"></span></div></div>
+    </div>
+  </div>
+
+  <!-- ④ STATS ──────────────────────────────────────────────────────────── -->
+  <div class="panel" id="stats-panel">
+    <div id="stats-pills">
+      <div class="sp"><div class="sp-n" id="sp-prod">—</div><div class="sp-l">Productive</div></div>
+      <div class="sp"><div class="sp-n" id="sp-idle">—</div><div class="sp-l">Idle/Distracted</div></div>
+      <div class="sp"><div class="sp-n" id="sp-scr">—</div> <div class="sp-l">CLR Score</div></div>
     </div>
 
+    <div id="doughnut-wrap">
+      <canvas id="donut-canvas"></canvas>
+      <div id="donut-legend"></div>
+    </div>
+
+    <div>
+      <div class="section-lbl">Category Breakdown — Today</div>
+      <div id="cat-bars"><div class="empty"><span class="spinner"></span></div></div>
+    </div>
   </div>
-</div>
+
+</div><!-- /panels -->
 
 <script>
-  const BACKEND = "http://localhost:5000";
-  const messagesEl = document.getElementById("messages");
-  const inputEl    = document.getElementById("input");
-  const sendBtn    = document.getElementById("send-btn");
-  const statusDot  = document.getElementById("status-dot");
+/* ═══════════════════════════════════════════════════════════════════════════
+   Utilities
+══════════════════════════════════════════════════════════════════════════ */
+const API = 'http://localhost:5000';
 
-  // ── Category metadata ──────────────────────────────────────────────────────
-  const CAT = {
-    coding:             { icon:"💻", label:"Coding",        p: true  },
-    writing:            { icon:"✍️",  label:"Writing",       p: true  },
-    learning:           { icon:"📚", label:"Learning",      p: true  },
-    research:           { icon:"🔬", label:"Research",      p: true  },
-    email:              { icon:"📧", label:"Email",         p: true  },
-    meeting:            { icon:"🎥", label:"Meeting",       p: true  },
-    ai_tools:           { icon:"🤖", label:"AI Tools",      p: true  },
-    design:             { icon:"🎨", label:"Design",        p: true  },
-    productivity_tools: { icon:"📅", label:"Planner",       p: true  },
-    job_search:         { icon:"💼", label:"Job Search",    p: false },
-    communication:      { icon:"💬", label:"Chat",          p: false },
-    browsing:           { icon:"🌐", label:"Browsing",      p: false },
-    youtube_video:      { icon:"▶️",  label:"YouTube",       p: false },
-    social_media:       { icon:"📱", label:"Social Media",  p: false },
-    gaming:             { icon:"🎮", label:"Gaming",        p: false },
-    distraction:        { icon:"🎯", label:"Distraction",   p: false },
-    idle:               { icon:"💤", label:"Idle",          p: false },
-    other:              { icon:"❓", label:"Other",         p: false },
-  };
+async function api(path, opts = {}) {
+  const r = await fetch(API + path, {
+    ...opts,
+    signal: AbortSignal.timeout(7000),
+    headers: { 'Content-Type': 'application/json', ...(opts.headers||{}) },
+  });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
 
-  const UNPROD = new Set(["youtube_video","social_media","gaming","distraction"]);
-  const PROD   = new Set(["coding","writing","learning","research","email","meeting","ai_tools","design","productivity_tools"]);
+function fmt(s) {
+  const m = Math.round(s / 60);
+  return m < 60 ? m + 'm' : (m/60).toFixed(1) + 'h';
+}
+function today() { return new Date().toISOString().slice(0,10); }
+function daysLeft(d) {
+  if (!d) return null;
+  const diff = Math.round((new Date(d) - new Date(today())) / 86400000);
+  if (diff < 0)   return { t:'overdue', bad:true };
+  if (diff === 0) return { t:'today',   bad:false };
+  if (diff === 1) return { t:'tomorrow',bad:false };
+  return { t: d, bad:false };
+}
+function esc(t) {
+  return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+}
 
-  function fmtS(s) {
-    if (!s || s < 1) return "0s";
-    if (s < 60) return `${s}s`;
-    if (s < 3600) return `${Math.round(s/60)}m`;
-    return `${Math.floor(s/3600)}h${Math.round((s%3600)/60)}m`;
+const CAT_COLOR = {
+  coding:'#a78bfa',writing:'#6ee7b7',learning:'#fcd34d',research:'#60a5fa',
+  email:'#f0abfc',meeting:'#fb923c',ai_tools:'#34d399',design:'#f472b6',
+  productivity_tools:'#818cf8',job_search:'#38bdf8',communication:'#a3e635',
+  browsing:'#94a3b8',youtube_video:'#f87171',social_media:'#f43f5e',
+  gaming:'#a855f7',distraction:'#ef4444',idle:'#374151',other:'#6b7280',
+};
+function catCol(c) { return CAT_COLOR[c] || '#6b7280'; }
+function catLbl(c) { return (c||'').replace(/_/g,' ').replace(/\b\w/g,x=>x.toUpperCase()); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Status dot (backend online check)
+══════════════════════════════════════════════════════════════════════════ */
+async function checkStatus() {
+  try {
+    await api('/status');
+    document.getElementById('sdot').className  = 'alive';
+    document.getElementById('stext').textContent = 'live';
+  } catch {
+    document.getElementById('sdot').className  = 'dead';
+    document.getElementById('stext').textContent = 'offline';
   }
-  function esc(s) { return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
-  function renderText(s) { return esc(s).replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>").replace(/\n/g,"<br>"); }
-  function tsNow() { return new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}); }
-  function scrollBottom() { messagesEl.scrollTop = messagesEl.scrollHeight; }
+}
+checkStatus();
+setInterval(checkStatus, 12000);
 
-  // ── Tab switching ──────────────────────────────────────────────────────────
-  let currentTab = "chat";
-  function switchTab(tab) {
-    currentTab = tab;
-    document.getElementById("tab-chat").style.display = tab === "chat" ? "flex" : "none";
-    document.getElementById("tab-prod").style.display = tab === "prod" ? "flex" : "none";
-    document.getElementById("tbtn-chat").classList.toggle("active", tab === "chat");
-    document.getElementById("tbtn-prod").classList.toggle("active", tab === "prod");
-    if (tab === "prod") loadProductivity();
+/* ═══════════════════════════════════════════════════════════════════════════
+   Tab switching
+══════════════════════════════════════════════════════════════════════════ */
+const LOADERS = { focus:loadFocus, memory:()=>{}, tasks:loadTasks, stats:loadStats };
+
+document.querySelectorAll('.tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    const panel = document.getElementById(btn.dataset.tab + '-panel');
+    panel.classList.add('active','panel-enter');
+    panel.addEventListener('animationend', () => panel.classList.remove('panel-enter'), {once:true});
+    LOADERS[btn.dataset.tab]?.();
+  });
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ① FOCUS — CLR live data
+══════════════════════════════════════════════════════════════════════════ */
+const RING_CIRC = 339.3;
+
+const ZONE_CONF = {
+  NORMAL:   { col:'#6ee7b7', icon:'🟢', lbl:'CALM',       sub:'Your mind is clear — good flow.' },
+  ELEVATED: { col:'#fcd34d', icon:'🟡', lbl:'ELEVATED',   sub:'Things are heating up — stay with it.' },
+  OVERLOAD: { col:'#fb923c', icon:'🟠', lbl:'HIGH LOAD',  sub:'Muting noise. Breathe and focus.' },
+  RAGE:     { col:'#f87171', icon:'🔴', lbl:'OVERLOADED', sub:'Step away for 5 min — seriously.' },
+};
+
+let focusOn   = false;
+let lastScore = 0;
+let lastStressTs = null;
+const scoreCounter = { val: 0 };
+
+function applyZone(zone, score) {
+  const cfg = ZONE_CONF[zone] || ZONE_CONF.NORMAL;
+  const col = cfg.col;
+
+  // ring arc
+  const offset = RING_CIRC - (RING_CIRC * score / 100);
+  gsap.to('#ring-arc', {
+    attr: { 'stroke-dashoffset': offset, stroke: col },
+    duration: 0.85, ease: 'power2.out'
+  });
+  document.getElementById('ring-arc').style.filter = `drop-shadow(0 0 10px ${col})`;
+
+  // score number
+  gsap.to(scoreCounter, {
+    val: score, duration: 0.85, ease: 'power2.out',
+    onUpdate: () => { document.getElementById('ring-score').textContent = Math.round(scoreCounter.val); }
+  });
+
+  // zone bar
+  const zb = document.getElementById('zone-bar');
+  zb.style.background = col + '12';
+  zb.style.borderColor = col + '40';
+  document.getElementById('zb-icon').textContent = cfg.icon;
+  document.getElementById('zb-text').textContent = cfg.lbl;
+  document.getElementById('zb-sub').textContent  = cfg.sub;
+
+  // danger pulse on OVERLOAD/RAGE
+  if (zone === 'OVERLOAD' || zone === 'RAGE') {
+    zb.classList.add('danger');
+  } else {
+    zb.classList.remove('danger');
   }
 
-  // ── Status polling ─────────────────────────────────────────────────────────
-  async function pollStatus() {
-    try {
-      const r = await fetch(`${BACKEND}/status`);
-      const d = await r.json();
-      statusDot.className = "alive";
-      document.getElementById("s-buf").textContent   = d.buffer_snapshots;
-      document.getElementById("s-win").textContent   = d.windows_summarized;
-      document.getElementById("s-jobs").textContent  = d.jobs_tracked;
-      document.getElementById("s-links").textContent = d.links_tracked;
-      document.getElementById("s-tasks").textContent = d.tasks_pending ?? "—";
-      if (d.productivity_score != null) {
-        const sc  = Math.round(d.productivity_score);
-        const col = sc >= 70 ? "#22c55e" : sc >= 45 ? "#eab308" : "#ef4444";
-        document.getElementById("s-prod-live").innerHTML =
-          `<span style="color:${col};font-weight:700">${sc}</span><span style="color:#444"> prod</span>`;
-      }
-      if (document.getElementById("task-dropdown").classList.contains("open")) loadTaskDropdown();
-      if (currentTab === "prod") loadProductivity();
-    } catch { statusDot.className = "dead"; }
-  }
-  pollStatus();
-  setInterval(pollStatus, 15000);
+  // CSS var for glow
+  document.documentElement.style.setProperty('--zone', col);
+}
 
-  // ── Task dropdown ──────────────────────────────────────────────────────────
-  function toggleTaskDropdown() {
-    const panel = document.getElementById("task-dropdown");
-    const tog   = document.getElementById("tasks-toggle");
-    const open  = panel.classList.contains("open");
-    if (open) { panel.classList.remove("open"); tog.classList.remove("active"); }
-    else       { panel.classList.add("open");    tog.classList.add("active");    loadTaskDropdown(); }
+function applySig(sig) {
+  const sw  = sig.app_switches_30s || 0;
+  const bs  = sig.backspace_bursts || 0;
+  const id_ = sig.idle_secs || 0;
+  const ey  = sig.eye_state || '—';
+  const hof = !!sig.hand_on_face;
+  const hoh = !!sig.hand_on_head;
+  const oc  = !!sig.on_call;
+  const cm  = sig.call_minutes || 0;
+  const app = (sig.active_app || '').slice(0,30);
+
+  function tile(id, valId, val, alert) {
+    document.getElementById(valId).textContent = val;
+    document.getElementById(id).classList.toggle('alert', alert);
   }
 
-  async function loadTaskDropdown() {
-    const list  = document.getElementById("td-list");
-    const empty = document.getElementById("task-empty");
-    try {
-      const r = await fetch(`${BACKEND}/tasks`);
-      const d = await r.json();
-      const tasks = d.tasks || [];
-      list.innerHTML = "";
-      if (!tasks.length) { empty.style.display = "block"; return; }
-      empty.style.display = "none";
-      tasks.forEach(t => {
-        const due = t.due_date ? `<span class="td-due">📅 ${t.due_date}</span>` : "";
-        const src = t.source === "screen" ? `<span class="td-src">📷</span>` : "";
-        const row = document.createElement("div");
-        row.className = "td-row"; row.id = `td-${t.id}`;
-        row.innerHTML = `
-          <button class="td-check" onclick="tdDone('${t.id}')">✓</button>
-          <span class="td-title" title="${esc(t.title)}">${esc(t.title)}</span>
-          ${src}${due}
-          <button class="td-remove" onclick="tdRemove('${t.id}')">✕</button>`;
-        list.appendChild(row);
+  tile('st-sw', 'sv-sw', sw,             sw  >= 6);
+  tile('st-bs', 'sv-bs', bs,             bs  >= 3);
+  tile('st-id', 'sv-id', id_ + 's',      id_ >= 60);
+  tile('st-ey', 'sv-ey', ey,             ey === 'closed');
+  tile('st-fc', 'sv-fc', hof ? '✋' : '·', hof);
+  tile('st-hd', 'sv-hd', hoh ? '✋' : '·', hoh);
+  tile('st-cal','sv-cal', oc ? `📞 ${cm}m` : '—', false);
+
+  document.getElementById('app-name').textContent = app || '—';
+  document.getElementById('app-dot').style.background =
+    (oc ? '#fb923c' : '#a78bfa');
+}
+
+async function pollCLR() {
+  try {
+    const d = await api('/clr/status');
+
+    if (!d.available) {
+      document.getElementById('zb-text').textContent = 'CLR starting…';
+      document.getElementById('zb-sub').textContent  = 'Waiting for vision + signals';
+      return;
+    }
+
+    applyZone(d.zone || 'NORMAL', d.score || 0);
+    applySig(d.signals || {});
+    document.getElementById('coach-msg').textContent =
+      d.signals?.hand_on_face ? 'Hand on face — breathe 🌿' :
+      d.signals?.hand_on_head ? 'Hand on head — you okay? 🌿' :
+      ZONE_CONF[d.zone]?.sub || '';
+
+    // stress banner
+    if (d.stress_message && d.stress_ts !== lastStressTs) {
+      lastStressTs = d.stress_ts;
+      const banner = document.getElementById('stress-banner');
+      banner.textContent = '💬  ' + d.stress_message;
+      banner.classList.add('show');
+      setTimeout(async () => {
+        banner.classList.remove('show');
+        await api('/clr/stress/ack', { method:'POST' });
+      }, 10000);
+    }
+
+    // log
+    if (d.log) {
+      document.getElementById('coach-msg').textContent = '⚡ ' + d.log;
+    }
+
+  } catch {
+    document.getElementById('zb-text').textContent = 'Backend offline';
+    document.getElementById('zb-sub').textContent  = 'Start router.py first';
+  }
+}
+
+async function loadFocus() {
+  pollCLR();
+  try {
+    const rep = await api('/productivity/report');
+    const evs = (rep.recent_events || []).slice(0,5);
+    const wrap = document.getElementById('recent-events');
+    if (!evs.length) {
+      wrap.innerHTML = '<div class="empty"><span class="empty-icon">📭</span>No recent activity yet.</div>';
+      return;
+    }
+    wrap.innerHTML = '';
+    evs.forEach(ev => {
+      const col = catCol(ev.screen_category);
+      const row = document.createElement('div');
+      row.className = 'ev-row';
+      row.style.borderLeftColor = col;
+      row.innerHTML = `
+        <span class="ev-time">${(ev.ts||'').slice(11,16)}</span>
+        <span class="ev-title">${esc(ev.screen_title||'Unknown')}</span>
+        <span class="ev-cat" style="background:${col}22;color:${col}">${catLbl(ev.screen_category)}</span>
+      `;
+      wrap.appendChild(row);
+    });
+  } catch {
+    document.getElementById('recent-events').innerHTML =
+      '<div class="empty">⚠️ Run <code>python router.py</code> to see activity.</div>';
+  }
+}
+
+// Poll CLR every 2 s (matches agent loop)
+loadFocus();
+setInterval(pollCLR, 2000);
+
+// Focus toggle
+function toggleFocus() {
+  focusOn = !focusOn;
+  const btn = document.getElementById('focus-btn');
+  btn.textContent = focusOn ? '■  FOCUS SESSION ACTIVE' : '▶  START FOCUS SESSION';
+  btn.classList.toggle('active-focus', focusOn);
+  api('/clr/focus', { method:'POST', body: JSON.stringify({ enabled: focusOn }) })
+    .catch(() => {});
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ② MEMORY
+══════════════════════════════════════════════════════════════════════════ */
+const msgs  = document.getElementById('mem-msgs');
+const minput = document.getElementById('minput');
+const msend  = document.getElementById('msend');
+
+function addMsg(role, html) {
+  const row = document.createElement('div');
+  row.className = `msg-row ${role}`;
+  if (role === 'sys') {
+    row.innerHTML = `<div class="msg-bbl">${html}</div>`;
+  } else {
+    const av = role === 'user' ? '👤' : '🐰';
+    row.innerHTML = `<div class="msg-av">${av}</div><div class="msg-bbl">${html}</div>`;
+  }
+  msgs.appendChild(row);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+async function sendMem() {
+  const txt = minput.value.trim();
+  if (!txt) return;
+  minput.value = '';
+  addMsg('user', esc(txt));
+  msend.disabled = true;
+  minput.disabled = true;
+
+  const typing = document.createElement('div');
+  typing.className = 'msg-row luna';
+  typing.id = 'typing';
+  typing.innerHTML = '<div class="msg-av">🐰</div><div class="msg-bbl"><div class="typing"><span></span><span></span><span></span></div></div>';
+  msgs.appendChild(typing);
+  msgs.scrollTop = msgs.scrollHeight;
+
+  try {
+    const d = await api('/chat', { method:'POST', body: JSON.stringify({ message: txt }) });
+    document.getElementById('typing')?.remove();
+    addMsg('luna', esc(d.response || '…'));
+  } catch {
+    document.getElementById('typing')?.remove();
+    addMsg('sys', '⚠️ Backend offline — start <code>python router.py</code>');
+  } finally {
+    msend.disabled = false;
+    minput.disabled = false;
+    minput.focus();
+  }
+}
+
+function sendChip(t) { minput.value = t; sendMem(); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ③ TASKS
+══════════════════════════════════════════════════════════════════════════ */
+async function loadTasks() {
+  const list = document.getElementById('task-list');
+  list.innerHTML = '<div class="empty"><span class="spinner"></span></div>';
+  try {
+    const { tasks = [] } = await api('/tasks');
+    if (!tasks.length) {
+      list.innerHTML = '<div class="empty"><span class="empty-icon">✨</span>You\'re all clear!</div>';
+      return;
+    }
+    list.innerHTML = '';
+    tasks.forEach(t => list.appendChild(buildTask(t)));
+  } catch {
+    list.innerHTML = '<div class="empty">⚠️ Start router.py to see tasks.</div>';
+  }
+}
+
+function buildTask(t) {
+  const card = document.createElement('div');
+  card.className = `task-card ${t.priority||'normal'}`;
+  card.dataset.id = t.id;
+
+  const chk = document.createElement('input');
+  chk.type = 'checkbox'; chk.className = 'task-chk';
+  chk.setAttribute('aria-label','Complete: '+t.title);
+  chk.addEventListener('change', async () => {
+    card.classList.add('completing');
+    try { await api('/task/done',{method:'POST',body:JSON.stringify({id:t.id})}); } catch {}
+    setTimeout(()=>card.remove(), 380);
+  });
+
+  const title = document.createElement('div');
+  title.className = 'task-title';
+  title.textContent = t.title;
+
+  card.appendChild(chk);
+  card.appendChild(title);
+
+  if (t.due_date) {
+    const d = daysLeft(t.due_date);
+    const due = document.createElement('div');
+    due.className = 'task-due' + (d?.bad?' overdue':'');
+    due.textContent = d?.t || t.due_date;
+    card.appendChild(due);
+  }
+  if (t.source === 'screen') {
+    const src = document.createElement('div');
+    src.className = 'task-src'; src.textContent = 'screen';
+    card.appendChild(src);
+  }
+  return card;
+}
+
+async function addTask() {
+  const inp = document.getElementById('tinput');
+  const raw = inp.value.trim();
+  if (!raw) return;
+  let title = raw, priority = 'normal';
+  if (raw.includes('!high')) { priority='high'; title=raw.replace('!high','').trim(); }
+  if (raw.includes('!low'))  { priority='low';  title=raw.replace('!low','').trim(); }
+  try {
+    await api('/task',{method:'POST',body:JSON.stringify({title,priority,source:'user'})});
+    inp.value = '';
+    loadTasks();
+  } catch {
+    gsap.to(inp,{borderColor:'#f87171',duration:.3,onComplete:()=>gsap.to(inp,{borderColor:'',duration:.5})});
+  }
+}
+
+loadTasks();
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ④ STATS
+══════════════════════════════════════════════════════════════════════════ */
+let donutChart = null;
+
+async function loadStats() {
+  try {
+    const [rep, clr] = await Promise.all([
+      api('/productivity/report').catch(()=>({})),
+      api('/clr/status').catch(()=>({})),
+    ]);
+
+    document.getElementById('sp-prod').textContent = fmt(rep.productive_seconds||0);
+    document.getElementById('sp-idle').textContent = fmt((rep.unproductive_seconds||0)+(rep.neutral_seconds||0));
+    document.getElementById('sp-scr').textContent  = clr.score != null ? Math.round(clr.score) : '—';
+
+    // Doughnut
+    const prod   = rep.productive_seconds   || 0;
+    const unprod = rep.unproductive_seconds || 0;
+    const neutral= rep.neutral_seconds      || 0;
+    const total  = Math.max(prod+unprod+neutral, 1);
+
+    const ctx = document.getElementById('donut-canvas').getContext('2d');
+    if (donutChart) donutChart.destroy();
+    donutChart = new Chart(ctx, {
+      type:'doughnut',
+      data:{
+        datasets:[{
+          data:[prod,neutral,unprod],
+          backgroundColor:['#6ee7b730','#a78bfa30','#f8717130'],
+          borderColor:    ['#6ee7b7',  '#a78bfa',  '#f87171'],
+          borderWidth: 2, hoverOffset:4,
+        }],
+      },
+      options:{
+        responsive:true, cutout:'72%',
+        plugins:{ legend:{display:false}, tooltip:{
+          callbacks:{ label: ctx => ' ' + fmt(ctx.raw) }
+        }},
+        animation:{ animateRotate:true, duration:900, easing:'easeOutCubic' },
+      },
+    });
+
+    const legend = document.getElementById('donut-legend');
+    legend.innerHTML = [
+      {col:'#6ee7b7',lbl:'Productive',secs:prod},
+      {col:'#a78bfa',lbl:'Neutral',   secs:neutral},
+      {col:'#f87171',lbl:'Distracted',secs:unprod},
+    ].map(x=>`
+      <div class="dl-row">
+        <div class="dl-dot" style="background:${x.col}"></div>
+        <span>${x.lbl}</span>
+        <span style="margin-left:auto;color:var(--text3)">${fmt(x.secs)}</span>
+      </div>
+    `).join('');
+
+    // Category bars
+    const bars = document.getElementById('cat-bars');
+    const cats = (rep.category_breakdown||[]).slice(0,12);
+    if (!cats.length) {
+      bars.innerHTML = '<div class="empty"><span class="empty-icon">📭</span>No data yet.</div>';
+      return;
+    }
+    const maxS = Math.max(...cats.map(c=>c.seconds),1);
+    bars.innerHTML = '';
+    cats.forEach(c=>{
+      const pct = (c.seconds/maxS*100).toFixed(1);
+      const col = catCol(c.category);
+      const row = document.createElement('div');
+      row.className = 'cb-row';
+      row.innerHTML = `
+        <span class="cb-name">${catLbl(c.category)}</span>
+        <div class="cb-wrap"><div class="cb-fill" style="width:0;background:${col}" data-pct="${pct}"></div></div>
+        <span class="cb-time">${fmt(c.seconds)}</span>
+      `;
+      bars.appendChild(row);
+    });
+    // Animate bars after paint
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      bars.querySelectorAll('.cb-fill').forEach(el=>{
+        el.style.width = el.dataset.pct + '%';
       });
-    } catch { list.innerHTML = `<div style="padding:10px 14px;font-size:11px;color:#555">Could not load</div>`; }
+    }));
+
+  } catch {
+    document.getElementById('cat-bars').innerHTML =
+      '<div class="empty">⚠️ Start router.py for stats.</div>';
   }
-
-  async function tdDone(id) {
-    const row = document.getElementById(`td-${id}`);
-    if (row) { row.classList.add("done"); row.querySelector(".td-check").disabled = true; }
-    try {
-      await fetch(`${BACKEND}/task/done`, {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});
-      setTimeout(() => { row?.remove(); pollStatus(); }, 600);
-    } catch { row?.classList.remove("done"); }
-  }
-
-  async function tdRemove(id) {
-    const row = document.getElementById(`td-${id}`);
-    if (row) row.style.opacity = "0.3";
-    try {
-      await fetch(`${BACKEND}/task/remove`, {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});
-      setTimeout(() => { row?.remove(); pollStatus(); }, 300);
-    } catch { if (row) row.style.opacity = "1"; }
-  }
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // PRODUCTIVITY DASHBOARD
-  // ══════════════════════════════════════════════════════════════════════════
-
-  async function loadProductivity() {
-    try {
-      const [repR, liveR] = await Promise.all([
-        fetch(`${BACKEND}/productivity/report`),
-        fetch(`${BACKEND}/productivity`),
-      ]);
-      const rep  = await repR.json();
-      const live = await liveR.json().catch(() => ({}));
-      renderDashboard(rep, live);
-    } catch {
-      document.getElementById("prod-loading").textContent = "⚠️ Backend offline — run: python router.py";
-    }
-  }
-
-  function renderDashboard(rep, live) {
-    document.getElementById("prod-loading").style.display = "none";
-
-    // ── Score cards ────────────────────────────────────────────────────────
-    document.getElementById("prod-scores").style.display = "flex";
-
-    const sc  = live.productivity_score;
-    const scEl = document.getElementById("ps-score");
-    if (sc != null) {
-      scEl.textContent = Math.round(sc);
-      scEl.className   = `score-val ${sc>=70?"green":sc>=45?"yellow":"red"}`;
-    } else { scEl.textContent = "—"; scEl.className = "score-val"; }
-
-    const fc = live.focus_score;
-    document.getElementById("ps-focus").textContent = fc != null ? Math.round(fc) : "—";
-
-    const rk = live.risk_level;
-    const rkEl = document.getElementById("ps-risk");
-    rkEl.textContent = rk || "—";
-    rkEl.className   = `risk-badge ${rk || ""}`;
-
-    document.getElementById("ps-switches").textContent = live.switch_count ?? "—";
-
-    // ── Time split ─────────────────────────────────────────────────────────
-    const total  = rep.total_tracked_seconds || 0;
-    const prodS  = rep.productive_seconds    || 0;
-    const unpS   = rep.unproductive_seconds  || 0;
-    const neutS  = total - prodS - unpS;
-
-    document.getElementById("p-split").style.display = "block";
-    document.getElementById("p-total").textContent   = total ? fmtS(total) + " tracked today" : "";
-
-    const pP = total ? (prodS/total*100) : 0;
-    const pU = total ? (unpS /total*100) : 0;
-    const pN = 100 - pP - pU;
-
-    document.getElementById("p-splitbar").innerHTML = `
-      <div class="summary-seg" style="width:${pP}%;background:#22c55e;border-radius:3px"></div>
-      <div class="summary-seg" style="width:${pN}%;background:#374151;border-radius:3px"></div>
-      <div class="summary-seg" style="width:${pU}%;background:#ef4444;border-radius:3px"></div>`;
-    document.getElementById("pp-p").textContent = `${Math.round(pP)}%`;
-    document.getElementById("pp-n").textContent = `${Math.round(pN)}%`;
-    document.getElementById("pp-u").textContent = `${Math.round(pU)}%`;
-
-    // ── Category bars ──────────────────────────────────────────────────────
-    const cats = (rep.category_breakdown || []).filter(c => c.seconds > 0);
-    if (cats.length) {
-      document.getElementById("p-cats").style.display = "block";
-      const maxS = Math.max(...cats.map(c => c.seconds), 1);
-      document.getElementById("p-cats-body").innerHTML = cats.slice(0, 12).map(c => {
-        const m   = CAT[c.category] || { icon:"❓", label: c.category };
-        const pct = Math.round(c.seconds / maxS * 100);
-        return `<div class="cat-row">
-          <span class="cat-icon">${m.icon}</span>
-          <span class="cat-name">${m.label}</span>
-          <div class="cat-bar-wrap"><div class="cat-bar bar-${c.category}" style="width:${pct}%"></div></div>
-          <span class="cat-time">${fmtS(c.seconds)}</span>
-        </div>`;
-      }).join("");
-    }
-
-    // ── Hourly chart ───────────────────────────────────────────────────────
-    const hours = rep.hourly_scores || [];
-    if (hours.length) {
-      document.getElementById("p-hourly").style.display = "block";
-      const hMap = {};
-      hours.forEach(h => { hMap[h.hour] = h; });
-      const nowH = new Date().getHours();
-      const grid = document.getElementById("p-hourly-grid");
-      grid.innerHTML = "";
-      for (let h = Math.max(0, nowH - 11); h <= nowH; h++) {
-        const d    = hMap[h];
-        const s    = d ? d.avg_score : null;
-        const pct  = s != null ? Math.max(6, Math.round(s)) : 6;
-        const col  = s == null ? "#2a2a2a" : s >= 70 ? "#22c55e" : s >= 45 ? "#eab308" : "#ef4444";
-        const colEl = document.createElement("div");
-        colEl.className = "hour-col";
-        colEl.innerHTML = `
-          <div class="hour-bar" style="height:${pct}%;background:${col}" title="${h}:00 — ${s!=null?Math.round(s):"no data"}"></div>
-          <div class="hour-lbl">${h%12||12}${h<12?"a":"p"}</div>`;
-        grid.appendChild(colEl);
-      }
-    }
-
-    // ── Recent activity ────────────────────────────────────────────────────
-    const events = (rep.recent_events || []).slice(0, 15);
-    if (events.length) {
-      document.getElementById("p-activity").style.display = "block";
-      document.getElementById("p-act-body").innerHTML = events.map(e => {
-        const dotCls = e.productive ? "p" : UNPROD.has(e.screen_category) ? "u" : "n";
-        const m      = CAT[e.screen_category] || { icon:"❓", label: e.screen_category };
-        const t      = (e.ts || "").slice(11, 16);
-        const title  = e.screen_title || e.screen_category || "—";
-        return `<div class="act-row">
-          <div class="act-dot ${dotCls}"></div>
-          <span class="act-title" title="${esc(title)}">${m.icon} ${esc(title)}</span>
-          <span class="act-cat">${m.label}</span>
-          <span class="act-time">${t}</span>
-        </div>`;
-      }).join("");
-    }
-  }
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // CHAT LOGIC
-  // ══════════════════════════════════════════════════════════════════════════
-
-  inputEl.addEventListener("input", () => {
-    inputEl.style.height = "auto";
-    inputEl.style.height = Math.min(inputEl.scrollHeight, 80) + "px";
-  });
-  inputEl.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
-  });
-
-  function appendMsg(role, html) {
-    const div = document.createElement("div");
-    div.className = `msg ${role}`;
-    div.innerHTML = `<div class="bubble">${html}</div><span class="ts">${tsNow()}</span>`;
-    messagesEl.appendChild(div); scrollBottom(); return div;
-  }
-
-  function appendTyping() {
-    const div = document.createElement("div");
-    div.className = "msg luke typing";
-    div.innerHTML = `<div class="bubble"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>`;
-    messagesEl.appendChild(div); scrollBottom(); return div;
-  }
-
-  function appendTaskCard(task, headerText) {
-    const due = task.due_date ? `<span class="tc-due">📅 ${task.due_date}</span>` : "";
-    const pri = task.priority === "high" ? `<span class="tc-pri">🔴 high</span>` : "";
-    const src = task.source === "screen" ? `<span class="tc-src">📷 screen</span>` : "";
-    const ctx = task.person_context ? `<div class="tc-ctx">${esc(task.person_context)}</div>` : "";
-    const btn = task.status === "pending"
-      ? `<button class="tc-done-btn" onclick="completeTask('${task.id}',this)">Mark done</button>`
-      : `<span class="tc-done-label">✅ done</span>`;
-    const div = document.createElement("div");
-    div.className = "msg luke";
-    div.innerHTML = `
-      <div class="bubble task-card">
-        <div class="tc-header">${renderText(headerText)}</div>
-        <div class="tc-title">${esc(task.title)}</div>${ctx}
-        <div class="tc-meta">${due}${pri}${src}</div>
-        <div class="tc-actions">${btn}</div>
-      </div><span class="ts">${tsNow()}</span>`;
-    messagesEl.appendChild(div); scrollBottom();
-  }
-
-  function appendTaskList(tasks, headerText) {
-    const div = document.createElement("div");
-    div.className = "msg luke";
-    const rows = !tasks.length
-      ? `<div class="tl-empty">No pending tasks 🎉</div>`
-      : tasks.map((t,i) => {
-          const due = t.due_date ? ` · <span class="tl-due">${t.due_date}</span>` : "";
-          const pri = t.priority === "high" ? " 🔴" : "";
-          const src = t.source === "screen" ? " <span class='tl-screen'>screen</span>" : "";
-          return `<div class="tl-row" id="tlrow-${t.id}">
-            <span class="tl-num">${i+1}</span>
-            <span class="tl-title">${esc(t.title)}${pri}${src}${due}</span>
-            <button class="tl-done-btn" onclick="completeTask('${t.id}',this)">✓</button>
-          </div>`;
-        }).join("");
-    div.innerHTML = `
-      <div class="bubble task-list">
-        <div class="tc-header">${renderText(headerText)}</div>
-        <div class="tl-body">${rows}</div>
-      </div><span class="ts">${tsNow()}</span>`;
-    messagesEl.appendChild(div); scrollBottom();
-  }
-
-  async function completeTask(id, btn) {
-    btn.disabled = true; btn.textContent = "…";
-    try {
-      const r = await fetch(`${BACKEND}/task/done`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});
-      const d = await r.json();
-      if (d.ok) {
-        const row = document.getElementById(`tlrow-${id}`);
-        if (row) { row.style.opacity="0.4"; row.style.textDecoration="line-through"; btn.remove(); }
-        else btn.textContent = "✅";
-        pollStatus();
-      } else { btn.textContent="✓"; btn.disabled=false; }
-    } catch { btn.textContent="✓"; btn.disabled=false; }
-  }
-
-  async function sendMessage() {
-    const text = inputEl.value.trim();
-    if (!text) return;
-    inputEl.value = ""; inputEl.style.height = "auto";
-    sendBtn.disabled = true;
-    appendMsg("user", renderText(text));
-    const typing = appendTyping();
-    try {
-      const r = await fetch(`${BACKEND}/chat`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:text})});
-      const d = await r.json();
-      typing.remove();
-      if (d.type==="task_added"||d.type==="task_duplicate") { appendTaskCard(d.task,d.response); pollStatus(); }
-      else if (d.type==="task_list") appendTaskList(d.tasks||[],d.response.split("\n")[0]);
-      else if (d.type==="task_done") { appendMsg("luke",renderText(d.response)); pollStatus(); }
-      else appendMsg("luke",renderText(d.response||d.error||"No response"));
-    } catch { typing.remove(); appendMsg("luke","⚠️ Backend offline. Run: python router.py"); }
-    sendBtn.disabled = false;
-    inputEl.focus();
-  }
-
-  function send(text) { inputEl.value = text; sendMessage(); }
+}
 </script>
 </body>
 </html>

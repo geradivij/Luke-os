@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8"/>
   <style>
@@ -7,137 +7,341 @@
 
     body {
       background: transparent;
-      width: 80px;
-      height: 80px;
+      width:  160px;
+      height: 210px;
       overflow: hidden;
+    }
+
+    /* ── Speech bubble ──────────────────────────────────────────────── */
+    #bubble {
+      position: absolute;
+      top: 4px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15, 11, 30, 0.88);
+      border: 1px solid rgba(167, 139, 250, 0.45);
+      border-radius: 14px;
+      padding: 7px 11px;
+      font-family: -apple-system, 'Segoe UI', system-ui, sans-serif;
+      font-size: 11.5px;
+      line-height: 1.5;
+      color: #f0e6ff;
+      max-width: 148px;
+      min-height: 38px;
+      text-align: center;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      box-shadow: 0 4px 20px rgba(167, 139, 250, 0.2);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.35s ease;
+      z-index: 20;
+    }
+    #bubble.show { opacity: 1; }
+    /* tail */
+    #bubble::after {
+      content: '';
+      position: absolute;
+      bottom: -8px;
+      left: 50%;
+      transform: translateX(-50%);
+      border: 8px solid transparent;
+      border-top: 8px solid rgba(15, 11, 30, 0.88);
+      border-bottom: none;
+    }
+
+    /* ── Canvas container ───────────────────────────────────────────── */
+    #canvas-wrap {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 160px;
+      height: 160px;
       cursor: pointer;
     }
+    #bunny-canvas { display: block; }
 
-    #orb {
-      width: 72px;
-      height: 72px;
-      margin: 4px;
-      border-radius: 50%;
-      background: radial-gradient(circle at 35% 35%, #3b82f6, #1e1b4b);
-      box-shadow:
-        0 0 0 2px rgba(59,130,246,0.3),
-        0 4px 24px rgba(59,130,246,0.5),
-        0 0 40px rgba(99,102,241,0.3);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 32px;
-      transition: transform 0.15s ease, box-shadow 0.15s ease;
-      position: relative;
-    }
-
-    #orb:hover {
-      transform: scale(1.08);
-      box-shadow:
-        0 0 0 2px rgba(59,130,246,0.5),
-        0 4px 32px rgba(59,130,246,0.8),
-        0 0 60px rgba(99,102,241,0.5);
-    }
-
-    #orb:active {
-      transform: scale(0.95);
-    }
-
-    /* pulse ring */
-    #orb::after {
-      content: "";
-      position: absolute;
-      width: 100%;
-      height: 100%;
-      border-radius: 50%;
-      border: 2px solid rgba(99,102,241,0.4);
-      animation: pulse 2.5s ease-out infinite;
-    }
-
-    @keyframes pulse {
-      0%   { transform: scale(1);   opacity: 0.8; }
-      100% { transform: scale(1.5); opacity: 0; }
-    }
-
-    /* status dot */
+    /* ── Status dot ─────────────────────────────────────────────────── */
     #dot {
       position: absolute;
-      bottom: 6px;
-      right: 6px;
+      bottom: 14px;
+      right: 14px;
       width: 10px;
       height: 10px;
       border-radius: 50%;
       background: #374151;
-      border: 2px solid #1e1b4b;
-      transition: background 0.3s;
+      border: 2px solid rgba(15, 11, 30, 0.6);
+      transition: background 0.4s, box-shadow 0.4s;
+      pointer-events: none;
+      z-index: 10;
     }
-    #dot.alive { background: #22c55e; }
-    #dot.dead  { background: #ef4444; }
+    #dot.alive { background: #6ee7b7; box-shadow: 0 0 8px rgba(110,231,183,0.8); }
+    #dot.dead  { background: #f87171; }
+
+    @media (prefers-reduced-motion: reduce) {
+      #bubble { transition: none; }
+    }
   </style>
 </head>
 <body>
 
-<div id="orb">
-  🧠
-  <div id="dot"></div>
+<div id="bubble"><span id="bubble-text"></span></div>
+<div id="canvas-wrap">
+  <canvas id="bunny-canvas" width="160" height="160"></canvas>
 </div>
+<div id="dot"></div>
 
-<script>
-  const orb = document.getElementById("orb");
-  const dot = document.getElementById("dot");
+<script type="importmap">
+{
+  "imports": {
+    "three": "./node_modules/three/build/three.module.js"
+  }
+}
+</script>
 
-  // ── Click to toggle chat ────────────────────────────────────────────────
-  orb.addEventListener("click", () => {
-    window.luke.toggleChat();
-  });
+<script type="module">
+import * as THREE from 'three';
 
-  // ── Drag to move widget ─────────────────────────────────────────────────
-  let dragging = false;
-  let startX, startY, startScreenX, startScreenY;
+// ── Renderer ─────────────────────────────────────────────────────────────────
+const canvas   = document.getElementById('bunny-canvas');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setSize(160, 160);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setClearColor(0x000000, 0);
 
-  orb.addEventListener("mousedown", (e) => {
-    // only drag on middle-click or right-click; left click = toggle
-    if (e.button !== 0) return;
-    dragging = false;
-    startX = e.screenX;
-    startY = e.screenY;
-    startScreenX = window.screenX;
-    startScreenY = window.screenY;
+// ── Scene & Camera ────────────────────────────────────────────────────────────
+const scene  = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
+camera.position.set(0, 0.6, 6.2);
+camera.lookAt(0, 0.5, 0);
 
-    const onMove = (ev) => {
-      const dx = ev.screenX - startX;
-      const dy = ev.screenY - startY;
-      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
-        dragging = true;
-        window.luke.moveWidget(startScreenX + dx, startScreenY + dy);
-      }
-    };
+// ── Lighting ──────────────────────────────────────────────────────────────────
+scene.add(new THREE.AmbientLight(0xffffff, 0.55));
 
-    const onUp = () => {
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
-      // if we dragged, swallow the click
-      if (dragging) {
-        orb.addEventListener("click", (e) => e.stopImmediatePropagation(), { once: true, capture: true });
-      }
-    };
+const keyLight = new THREE.DirectionalLight(0xfff4ff, 1.1);
+keyLight.position.set(2, 4, 5);
+scene.add(keyLight);
 
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
-  });
+const rimLight = new THREE.DirectionalLight(0xa78bfa, 0.55);
+rimLight.position.set(-3, 1, -2);
+scene.add(rimLight);
 
-  // ── Poll backend status for dot color ──────────────────────────────────
-  async function pollStatus() {
-    try {
-      const r = await fetch("http://localhost:5000/status");
-      if (r.ok) dot.className = "alive";
-      else       dot.className = "dead";
-    } catch {
-      dot.className = "dead";
+const fillLight = new THREE.DirectionalLight(0x6ee7b7, 0.25);
+fillLight.position.set(1, -3, 3);
+scene.add(fillLight);
+
+// ── Shared materials ──────────────────────────────────────────────────────────
+const skinMat   = new THREE.MeshToonMaterial({ color: 0xf0e8ff });
+const innerMat  = new THREE.MeshToonMaterial({ color: 0xffb3d9 });
+const eyeMat    = new THREE.MeshToonMaterial({ color: 0x2a1a4e });
+const shineMat  = new THREE.MeshToonMaterial({ color: 0xffffff });
+const noseMat   = new THREE.MeshToonMaterial({ color: 0xff9fb3 });
+const cheekMat  = new THREE.MeshToonMaterial({ color: 0xffd6e7, transparent: true, opacity: 0.65 });
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function sphere(r, mat, x=0, y=0, z=0, sx=1, sy=1, sz=1) {
+  const m = new THREE.Mesh(new THREE.SphereGeometry(r, 32, 32), mat);
+  m.position.set(x, y, z);
+  m.scale.set(sx, sy, sz);
+  return m;
+}
+function capsule(r, h, mat, x=0, y=0, z=0, rz=0) {
+  const m = new THREE.Mesh(new THREE.CapsuleGeometry(r, h, 8, 16), mat);
+  m.position.set(x, y, z);
+  m.rotation.z = rz;
+  return m;
+}
+
+// ── Build Luna ────────────────────────────────────────────────────────────────
+const luna = new THREE.Group();
+
+// Body
+luna.add(sphere(0.70, skinMat,  0, 0,    0, 1, 0.94, 0.88));
+
+// Head
+luna.add(sphere(0.52, skinMat,  0, 1.06, 0));
+
+// Ears — kept as refs for wiggle animation
+const lEar = capsule(0.13, 0.52, skinMat, -0.22, 1.92, 0,  0.12);
+const rEar = capsule(0.13, 0.52, skinMat,  0.22, 1.92, 0, -0.12);
+luna.add(lEar, rEar);
+
+// Inner ear
+const lInner = capsule(0.072, 0.40, innerMat, -0.22, 1.91, 0.09,  0.12);
+const rInner = capsule(0.072, 0.40, innerMat,  0.22, 1.91, 0.09, -0.12);
+luna.add(lInner, rInner);
+
+// Eyes + shines
+luna.add(sphere(0.090, eyeMat,   -0.19, 1.07, 0.46));
+luna.add(sphere(0.090, eyeMat,    0.19, 1.07, 0.46));
+luna.add(sphere(0.034, shineMat, -0.17, 1.10, 0.51));
+luna.add(sphere(0.034, shineMat,  0.21, 1.10, 0.51));
+
+// Nose
+luna.add(sphere(0.065, noseMat, 0, 0.88, 0.50));
+
+// Blush cheeks
+luna.add(sphere(0.13, cheekMat, -0.29, 0.84, 0.42));
+luna.add(sphere(0.13, cheekMat,  0.29, 0.84, 0.42));
+
+// Tail
+luna.add(sphere(0.22, new THREE.MeshToonMaterial({ color: 0xfefcff }), 0, 0.05, -0.71));
+
+// Tiny paws
+luna.add(sphere(0.19, skinMat, -0.42, -0.52, 0.28, 1.3, 0.65, 1));
+luna.add(sphere(0.19, skinMat,  0.42, -0.52, 0.28, 1.3, 0.65, 1));
+
+luna.position.y = -0.3;
+scene.add(luna);
+
+// ── Bunny state ───────────────────────────────────────────────────────────────
+const STATE_COLORS = {
+  CALM:     0xf0e8ff,   // soft lavender-white
+  ELEVATED: 0xfff3cc,   // soft yellow
+  OVERLOAD: 0xffd9b3,   // soft orange
+  RAGE:     0xffcccc,   // soft red
+};
+
+function setBunnyState(state) {
+  skinMat.color.set(new THREE.Color(STATE_COLORS[state] ?? STATE_COLORS.CALM));
+}
+
+// ── Animation ─────────────────────────────────────────────────────────────────
+let t         = 0;
+let bunnyState = 'CALM';
+let earTimer  = 0;
+let earWave   = 0;
+
+const BASE_EAR_Z = 0.12;
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  const speed = { CALM: 1, ELEVATED: 1.35, OVERLOAD: 1.7, RAGE: 2.5 }[bunnyState] ?? 1;
+  t += 0.016 * speed;
+
+  // Gentle breathing bob
+  luna.position.y = -0.3 + Math.sin(t * 1.2) * 0.06;
+
+  // Slow gaze sway
+  luna.rotation.y = Math.sin(t * 0.38) * 0.22;
+
+  // Horizontal shake when RAGE
+  luna.position.x = bunnyState === 'RAGE' ? Math.sin(t * 22) * 0.10 : luna.position.x * 0.88;
+
+  // Ear wiggle every ~4–7 s
+  earTimer += 0.016;
+  if (earTimer > 4 + Math.random() * 3) { earWave = 1; earTimer = 0; }
+  if (earWave > 0) {
+    const w = Math.sin(earWave * 16) * 0.18 * earWave;
+    lEar.rotation.z    =  BASE_EAR_Z + w;
+    rEar.rotation.z    = -BASE_EAR_Z - w;
+    lInner.rotation.z  =  BASE_EAR_Z + w;
+    rInner.rotation.z  = -BASE_EAR_Z - w;
+    earWave -= 0.045;
+    if (earWave <= 0) {
+      lEar.rotation.z = lInner.rotation.z  =  BASE_EAR_Z;
+      rEar.rotation.z = rInner.rotation.z  = -BASE_EAR_Z;
+      earWave = 0;
     }
   }
-  pollStatus();
-  setInterval(pollStatus, 10000);
+
+  renderer.render(scene, camera);
+}
+animate();
+
+// ── Speech bubble ─────────────────────────────────────────────────────────────
+const bubble     = document.getElementById('bubble');
+const bubbleText = document.getElementById('bubble-text');
+let   bubbleTimer = null;
+
+function speak(text, ms = 5000) {
+  bubbleText.textContent = text;
+  bubble.classList.add('show');
+  clearTimeout(bubbleTimer);
+  bubbleTimer = setTimeout(() => bubble.classList.remove('show'), ms);
+}
+
+// Greet after a moment
+setTimeout(() => speak("Hi! I'm Luna 🐰", 4500), 1400);
+
+// Occasional idle phrases
+const IDLE_PHRASES = [
+  "How's the focus going? 💜",
+  "Remember to blink! 👁️",
+  "You're doing great ✨",
+  "Take a breath 🌿",
+  "I'm watching your back 🐰",
+];
+setInterval(() => {
+  if (Math.random() < 0.25) speak(IDLE_PHRASES[Math.floor(Math.random() * IDLE_PHRASES.length)], 5000);
+}, 45000);
+
+// ── Status polling ────────────────────────────────────────────────────────────
+const dot = document.getElementById('dot');
+
+async function pollStatus() {
+  try {
+    const res  = await fetch('http://localhost:5000/status', { signal: AbortSignal.timeout(3000) });
+    const data = await res.json();
+    dot.className = 'alive';
+
+    const score = data.productivity_score ?? null;
+    if      (score === null)  bunnyState = 'CALM';
+    else if (score >= 72)     bunnyState = 'CALM';
+    else if (score >= 50)     bunnyState = 'ELEVATED';
+    else if (score >= 30)     bunnyState = 'OVERLOAD';
+    else                      bunnyState = 'RAGE';
+
+    setBunnyState(bunnyState);
+
+    if (data.is_distracted && Math.random() < 0.35) {
+      const nudges = [
+        "Looks like you drifted 🌿 Come back!",
+        "Hey — want to refocus? 💜",
+        "A tiny break might help 🌸",
+        "Back to it? I believe in you 🐰",
+      ];
+      speak(nudges[Math.floor(Math.random() * nudges.length)], 6500);
+    }
+  } catch {
+    dot.className = 'dead';
+    bunnyState = 'CALM';
+    setBunnyState('CALM');
+  }
+}
+
+pollStatus();
+setInterval(pollStatus, 9000);
+
+// ── Click & drag ──────────────────────────────────────────────────────────────
+const wrap = document.getElementById('canvas-wrap');
+let dragging = false, startX, startY, startWX, startWY;
+
+wrap.addEventListener('mousedown', e => {
+  if (e.button !== 0) return;
+  dragging = false;
+  startX = e.screenX; startY = e.screenY;
+  startWX = window.screenX; startWY = window.screenY;
+
+  function onMove(ev) {
+    const dx = ev.screenX - startX, dy = ev.screenY - startY;
+    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+      dragging = true;
+      window.luke.moveWidget(startWX + dx, startWY + dy);
+    }
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+});
+
+wrap.addEventListener('click', () => {
+  if (!dragging) window.luke.toggleChat();
+});
 </script>
 </body>
 </html>

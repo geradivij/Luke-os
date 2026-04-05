@@ -4,15 +4,15 @@ const path = require("path");
 let widgetWin = null;
 let chatWin   = null;
 
-// ── Widget window (always on top, draggable brain orb) ─────────────────────
+// ── Widget window — transparent always-on-top bunny ────────────────────────
 function createWidget() {
   const { width, height } = screen.getPrimaryDisplay().workAreaSize;
 
   widgetWin = new BrowserWindow({
-    width:          80,
-    height:         80,
-    x:              width - 100,   // bottom-right by default
-    y:              height - 100,
+    width:          160,
+    height:         210,
+    x:              width  - 180,
+    y:              height - 230,
     frame:          false,
     transparent:    true,
     alwaysOnTop:    true,
@@ -30,21 +30,21 @@ function createWidget() {
   widgetWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 }
 
-// ── Chat window (hidden until widget is clicked) ───────────────────────────
+// ── Chat panel — slides up from the widget ─────────────────────────────────
 function createChat() {
   const { width, height } = screen.getPrimaryDisplay().workAreaSize;
 
   chatWin = new BrowserWindow({
-    width:          420,
-    height:         620,
-    x:              width - 440,
-    y:              height - 700,
+    width:          480,
+    height:         660,
+    x:              width  - 500,
+    y:              height - 730,
     frame:          false,
     transparent:    false,
     alwaysOnTop:    true,
     resizable:      true,
     skipTaskbar:    true,
-    show:           false,          // hidden until widget click
+    show:           false,
     webPreferences: {
       preload:          path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -54,7 +54,6 @@ function createChat() {
 
   chatWin.loadFile("chat.html");
 
-  // hide instead of close when X is pressed
   chatWin.on("close", (e) => {
     e.preventDefault();
     chatWin.hide();
@@ -62,29 +61,25 @@ function createChat() {
 }
 
 // ── IPC handlers ───────────────────────────────────────────────────────────
-
-// Widget clicked → toggle chat
 ipcMain.on("toggle-chat", () => {
   if (!chatWin) return;
   if (chatWin.isVisible()) {
     chatWin.hide();
   } else {
-    // Re-anchor chat window just above widget
     const [wx, wy] = widgetWin.getPosition();
     const { width } = screen.getPrimaryDisplay().workAreaSize;
-    const chatX = Math.min(wx - 360, width - 440);
-    chatWin.setPosition(chatX, Math.max(wy - 640, 10));
+    const chatX = Math.min(wx - 330, width - 500);
+    const chatY = Math.max(wy - 680, 10);
+    chatWin.setPosition(chatX, chatY);
     chatWin.show();
     chatWin.focus();
   }
 });
 
-// Chat close button → hide chat
 ipcMain.on("close-chat", () => {
   if (chatWin) chatWin.hide();
 });
 
-// Widget drag — renderer sends new position
 ipcMain.on("widget-move", (_, { x, y }) => {
   if (widgetWin) widgetWin.setPosition(x, y);
 });

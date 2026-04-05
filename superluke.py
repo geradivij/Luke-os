@@ -46,9 +46,12 @@ from pathlib import Path
 import mss
 from PIL import Image
 from groq import Groq
-from dotenv import load_dotenv
 
-load_dotenv()
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # dotenv optional; set GROQ_API_KEY in environment or .env manually
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Config
